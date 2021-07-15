@@ -4,7 +4,7 @@
 #include "JsonkafkaConverter.hpp"
 
 #include "opmonlib/OpmonService.hpp"
-#include "cpr/cpr.h"
+//#include "cpr/cpr.h"
 #include <librdkafka/rdkafkacpp.h>
 #include <nlohmann/json.hpp>
 #include <string>

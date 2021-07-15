@@ -5,6 +5,8 @@ include(CMakeFindDependencyMacro)
 
 find_dependency(opmonlib)
 find_dependency(CPR)
+find_dependency(CURL)
+find_dependency(RdKafka)
 
 if (EXISTS ${CMAKE_SOURCE_DIR}/@PROJECT_NAME@)
 
