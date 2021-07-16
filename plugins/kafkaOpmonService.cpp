@@ -4,7 +4,6 @@
 #include "JsonkafkaConverter.hpp"
 
 #include "opmonlib/OpmonService.hpp"
-//#include "cpr/cpr.h"
 #include <librdkafka/rdkafkacpp.h>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -64,9 +63,9 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             m_host = uri_match[2];
             m_port = uri_match[3];;
             m_topic = uri_match[4];
-
+            m_topic = m_topic.substr(1, m_topic.size() - 1);
             //Kafka server settings
-            std::string brokers = "dqmbroadcast:9092";
+            std::string brokers = m_host + ":" + m_port;
             std::string errstr;
 
             RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
@@ -119,8 +118,7 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
         }
 
         void execution_command(const std::string& adress, const std::string& cmd) {
-
-            kafka_exporter(cmd, "opmonkafka-reporting");
+            kafka_exporter(cmd, m_topic);
 
         }
 
