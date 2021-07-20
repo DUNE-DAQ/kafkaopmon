@@ -4,9 +4,10 @@
 #include <ers/SampleIssues.hpp>
 #include <ers/OutputStream.hpp>
 #include <ers/StreamManager.hpp>
-
+#include <regex.h>
 #include <ers/ers.hpp>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <cstdlib>
 #include <cstdio>
@@ -17,6 +18,7 @@
 #include <curl/curl.h>
 #include <vector>
 #include <cpr/cpr.h>
+
 
 ERS_DECLARE_ISSUE(kafkaopmon, cannot_post_to_DB,
     "Cannot post to Influx DB " << error,
@@ -99,48 +101,78 @@ void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tm
   }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    //Broker parameters
-    std::string broker = "188.185.122.48:9092";
-    std::string topic = "opmonkafka-reporting";
-    std::string db_host = "188.185.88.195";
-    std::string db_path = "insert";
-    std::string db_port = "80";
-    std::string db_dbname = "db1";
-    std::string topic_str;
-    std::vector<std::string> topics;
-    //Bulk consume parameters
-    int batch_size = 100;
-    int batch_tmout = 1000;
-    //Kafka server settings
-    std::string errstr;
-    RdKafka::KafkaConsumer *consumer;
-    try
-    {     
-      RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+  
+    std::cout << "Parameters count : " << argc << std::endl;
+ 
+    
+ 
 
-      srand((unsigned) time(0));
-      std::string groupId = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
-
-      conf->set("bootstrap.servers", broker, errstr);
-      conf->set("client.id", "kafkaopmonprod", errstr);
-      conf->set("group.id", groupId, errstr);
-      
-      topics.push_back(topic);
-      consumer = RdKafka::KafkaConsumer::create(conf, errstr);
-      if (consumer != 0)
-      consumer->subscribe(topics);
-      else std::cout << errstr << std::endl;
-
-      consumerLoop(consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
-      // Close and destroy consumer 
-      consumer->close();
-      delete consumer;
-    }
-    catch( ers::IssueCatcherAlreadySet & ex )
+    if(argc != 8)
     {
-    	ers::error( ex );
+      ers::fatal(ers::InternalMessage(ERS_HERE, "Invalid parameters."));
+    }
+    else
+    {
+      std::cout << "broker : " << argv[1] << std::endl;
+      std::cout << "broker port: " << argv[2] << std::endl;
+      std::cout << "topic : " << argv[3] << std::endl;
+      std::cout << "db host : " << argv[4] << std::endl;
+      std::cout << "db port : " << argv[5] << std::endl;
+      std::cout << "db path : " << argv[6] << std::endl;
+      std::cout << "db dbname : " << argv[7] << std::endl;
+
+      /*
+      std::string broker = "188.185.122.48:9092";
+      std::string topic = "opmonkafka-reporting";
+      std::string db_host = "188.185.88.195";
+      std::string db_port = "80";
+      std::string db_path = "insert";
+      std::string db_dbname = "db1";
+      */
+
+      //Broker parameters
+      std::string broker = argv[1] + std::string(":") + argv[2];
+      std::string topic =  argv[3];
+      std::string db_host = argv[4];
+      std::string db_port = argv[5];
+      std::string db_path = argv[6];
+      std::string db_dbname = argv[7];
+      std::string topic_str;
+      std::vector<std::string> topics;
+      //Bulk consume parameters
+      int batch_size = 100;
+      int batch_tmout = 1000;
+      //Kafka server settings
+      std::string errstr;
+      RdKafka::KafkaConsumer *consumer;
+      try
+      {     
+        RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+
+        srand((unsigned) time(0));
+        std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
+
+        conf->set("bootstrap.servers", broker, errstr);
+        conf->set("client.id", "kafkaopmonprod", errstr);
+        conf->set("group.id", group_id, errstr);
+        
+        topics.push_back(topic);
+        consumer = RdKafka::KafkaConsumer::create(conf, errstr);
+        if (consumer != 0)
+        consumer->subscribe(topics);
+        else std::cout << errstr << std::endl;
+
+        consumerLoop(consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
+        // Close and destroy consumer 
+        consumer->close();
+        delete consumer;
+      }
+      catch( ers::IssueCatcherAlreadySet & ex )
+      {
+        ers::error( ex );
+      }
     }
     return 0;
 }
