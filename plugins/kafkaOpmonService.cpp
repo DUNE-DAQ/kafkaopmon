@@ -47,11 +47,10 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             //"([a-zA-Z]+):\/\/([^:\/?#\s]+)+(?::(\d+))?(\/[^?#\s]+)?(?:\?(?:db=([^?#\s]+)))"
             //* 1st Capturing Group `([a-zA-Z])`: Matches protocol
             //* 2nd Capturing Group `([^:\/?#\s])+`: Matches hostname
-            //* 3rd Capturing Group `(\d)`: Matches port, optional
-            //* 4th Capturing Group `(\/[^?#\s])?`: Matches endpoint/path
-            //* 5th Capturing Group `([^#\s])`: Matches dbname
+            //* 3rd Capturing Group `(\d)`: Matches port
+            //* 4th Capturing Group `([^\/?#]+)?`: Matches kafka topic
             
-            std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+)([^\/?#\s]))");
+            std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+)\/([^\/?#]+))");
 
             std::smatch uri_match;
             if (!std::regex_match(uri, uri_match, uri_re)) 
@@ -61,9 +60,7 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
 
             m_host = uri_match[2];
             m_port = uri_match[3];
-            m_topic = "kafkaopmon-report";
-            //m_topic = m_topic.substr(1, m_topic.size() - 1);
-            std::cout << m_topic << std::endl;
+            m_topic = uri_match[4];
             //Kafka server settings
             std::string brokers = m_host + ":" + m_port;
             std::string errstr;
@@ -103,29 +100,6 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             try
             {
                 // serialize it to BSON
-                std::vector<uint8_t> v = nlohmann::json::to_bson(j);
-            
-                char* char_converted = new char[v.size()];
-                std::copy(v.begin(),v.end(),char_converted);
-
-                // print the vector content
-                /*for (auto& byte : v)
-                {
-                    std::cout << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)byte << " ";
-                }*/
-                std::cout << (void *) char_converted << std::endl;
-
-
-
-                //Print JSON
-                //std::cout << std::setw(2) << j << std::endl;
-
-
-
-
-/*                char *input_bytes = reinterpret_cast<char*>(nlohmann::json::to_bson(j).data());
-                std::string conveted_json = j.dump();
-                std::cout << json::parse(conveted_json) << std::endl;*/
                 m_producer->produce(m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, const_cast<char *>(j.dump().c_str()), j.dump().size(), nullptr, 0, 0, nullptr, nullptr);
                 m_producer->flush(10 * 1000);
                 if (m_producer->outq_len() > 0)
