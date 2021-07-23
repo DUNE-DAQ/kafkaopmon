@@ -1,5 +1,6 @@
 // * This is part of the DUNE DAQ Application Framework, copyright 2020.
 // * Licensing/copyright details are in the COPYING file that you should have received with this code.
+#include "JsonInfluxConverter.hpp"
 
 #include <ers/SampleIssues.hpp>
 #include <ers/OutputStream.hpp>
@@ -18,6 +19,8 @@
 #include <curl/curl.h>
 #include <vector>
 #include <cpr/cpr.h>
+#include <nlohmann/json.hpp>
+
 
 
 ERS_DECLARE_ISSUE(kafkaopmon, cannot_post_to_DB,
@@ -25,6 +28,10 @@ ERS_DECLARE_ISSUE(kafkaopmon, cannot_post_to_DB,
     ((std::string)error))
 
 static volatile sig_atomic_t run = 1;
+static dunedaq::influxopmon::JsonConverter m_json_converter;
+static std::vector<std::string> inserts_vectors;
+static std::string m_query = "";
+
 
 static int64_t now () {
     struct timeval tv;
@@ -44,6 +51,9 @@ consume_batch (RdKafka::KafkaConsumer *consumer, size_t batch_size, int batch_tm
   while (msgs.size() < batch_size) {
     RdKafka::Message *msg = consumer->consume(remaining_timeout);
 
+    std::cout << msg->offset() << std::endl;
+
+
     switch (msg->err()) {
     case RdKafka::ERR__TIMED_OUT:
       delete msg;
@@ -54,7 +64,7 @@ consume_batch (RdKafka::KafkaConsumer *consumer, size_t batch_size, int batch_tm
       break;
 
     default:
-      ers::error(ers::InternalMessage(ERS_HERE, "%% Consumer error: " + msg->errstr()));
+      ers::fatal(ers::InternalMessage(ERS_HERE, "%% Unhandled consumer error: " + msg->errstr()));
       run = 0;
       delete msg;
       return msgs;
@@ -75,7 +85,7 @@ void execution_command(const std::string& adress, const std::string& cmd) {
   //std::cout << adress << std::endl;
   cpr::Response response = cpr::Post(cpr::Url{adress}, cpr::Body{cmd});
   //std::cout << cmd << std::endl;
-
+  std::cout << cmd << std::endl;
   
   if (response.status_code >= 400) {
       ers::error(ers::InternalMessage(ERS_HERE, "Error [" + std::to_string(response.status_code) + "] making request"));
@@ -92,12 +102,30 @@ void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tm
     auto msgs = consume_batch(consumer, batch_size, batch_tmout);
     for (auto &msg : msgs) 
     {
-      
-      char *message_text = (char *) msg->payload();
+      char *message_text = (char *) msg->payload();  
+      int message_length = msg->len();
       //std::cout << message_text << std::endl;
-      execution_command(adress, message_text);
+      //execution_command(adress, message_text);
+      std::string json_string(message_text, message_length);
+      nlohmann::json j = json::parse(json_string);
+
+      m_json_converter.set_inserts_vector(j);
+      inserts_vectors = m_json_converter.get_inserts_vector();  
+      
+      
+      
+      for (const auto& insert : inserts_vectors ) {
+          m_query = m_query + insert + "\n" ;
+      }
+
       delete msg;
     }
+    if(m_query!="")
+    {
+      execution_command(adress, m_query);
+      m_query = "";
+    }
+
   }
 }
 

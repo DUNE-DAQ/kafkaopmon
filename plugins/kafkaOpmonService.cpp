@@ -43,7 +43,6 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
         explicit kafkaOpmonService(std::string uri) : dunedaq::opmonlib::OpmonService(uri) 
         {
 
-            
             //Regex rescription:
             //"([a-zA-Z]+):\/\/([^:\/?#\s]+)+(?::(\d+))?(\/[^?#\s]+)?(?:\?(?:db=([^?#\s]+)))"
             //* 1st Capturing Group `([a-zA-Z])`: Matches protocol
@@ -52,41 +51,44 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             //* 4th Capturing Group `(\/[^?#\s])?`: Matches endpoint/path
             //* 5th Capturing Group `([^#\s])`: Matches dbname
             
-            std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+)(\/[^?#\s]+))");
+            std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+)([^\/?#\s]))");
 
             std::smatch uri_match;
             if (!std::regex_match(uri, uri_match, uri_re)) 
             {
-                ers::fatal(wrong_URI(ERS_HERE, "Invalid URI syntax: " + uri));
+                ers::fatal(wrong_URI(ERS_HERE, " Invalid URI syntax: " + uri));
             }
 
             m_host = uri_match[2];
-            m_port = uri_match[3];;
-            m_topic = uri_match[4];
-            m_topic = m_topic.substr(1, m_topic.size() - 1);
+            m_port = uri_match[3];
+            m_topic = "kafkaopmon-report";
+            //m_topic = m_topic.substr(1, m_topic.size() - 1);
+            std::cout << m_topic << std::endl;
             //Kafka server settings
             std::string brokers = m_host + ":" + m_port;
             std::string errstr;
 
             RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
             conf->set("bootstrap.servers", brokers, errstr);
-            conf->set("client.id", "kafkaopmonprod", errstr);
+            conf->set("client.id", std::getenv("DUNEDAQ_APPLICATION_NAME"), errstr);
             //Create producer instance
             m_producer = RdKafka::Producer::create(conf, errstr);
         }
 
       void publish(nlohmann::json j) override
         {
+
+            /*
             m_json_converter.set_inserts_vector(j);
             m_inserts = m_json_converter.get_inserts_vector();  
-            
+            */
             m_query = "";
             
             for (const auto& insert : m_inserts ) {
                 m_query = m_query + insert + "\n" ;
             }
 
-	        execution_command(m_topic, m_query);
+	        kafka_exporter(j, m_query);
         }
 
         protected:
@@ -96,12 +98,35 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
 
         RdKafka::Producer *m_producer;
 
-        void kafka_exporter(std::string input, std::string topic)
+        void kafka_exporter(const nlohmann::json j, std::string topic)
         {
             try
             {
-                char *input_bytes = const_cast<char *>(input.c_str());
-                m_producer->produce(topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, input_bytes, input.size(), nullptr, 0, 0, nullptr, nullptr);
+                // serialize it to BSON
+                std::vector<uint8_t> v = nlohmann::json::to_bson(j);
+            
+                char* char_converted = new char[v.size()];
+                std::copy(v.begin(),v.end(),char_converted);
+
+                // print the vector content
+                /*for (auto& byte : v)
+                {
+                    std::cout << "0x" << std::hex << std::setw(2) << std::setfill('0') << (int)byte << " ";
+                }*/
+                std::cout << (void *) char_converted << std::endl;
+
+
+
+                //Print JSON
+                //std::cout << std::setw(2) << j << std::endl;
+
+
+
+
+/*                char *input_bytes = reinterpret_cast<char*>(nlohmann::json::to_bson(j).data());
+                std::string conveted_json = j.dump();
+                std::cout << json::parse(conveted_json) << std::endl;*/
+                m_producer->produce(m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, const_cast<char *>(j.dump().c_str()), j.dump().size(), nullptr, 0, 0, nullptr, nullptr);
                 m_producer->flush(10 * 1000);
                 if (m_producer->outq_len() > 0)
                 {
@@ -109,17 +134,14 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
                     s.push_back(m_producer->outq_len());
                     ers::error(cannot_produce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
                 }
+
+                std::cout << "Sent message" << std::endl;
             }
             catch(const std::exception& e)
             {
                 std::string s = e.what();
                 ers::error(cannot_produce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
             }
-        }
-
-        void execution_command(const std::string& adress, const std::string& cmd) {
-            kafka_exporter(cmd, m_topic);
-
         }
 
         std::string m_host;
