@@ -1,7 +1,7 @@
 // * This is part of the DUNE DAQ Application Framework, copyright 2020.
 // * Licensing/copyright details are in the COPYING file that you should have received with this code.
 
-#include "JsonkafkaConverter.hpp"
+#include "JsonInfluxConverter.hpp"
 
 #include "opmonlib/OpmonService.hpp"
 #include <librdkafka/rdkafkacpp.h>
@@ -65,6 +65,7 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             std::string brokers = m_host + ":" + m_port;
             std::string errstr;
 
+
             RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
             conf->set("bootstrap.servers", brokers, errstr);
             conf->set("client.id", std::getenv("DUNEDAQ_APPLICATION_NAME"), errstr);
@@ -72,32 +73,9 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             m_producer = RdKafka::Producer::create(conf, errstr);
         }
 
-      void publish(nlohmann::json j) override
+        void publish(nlohmann::json j) override
         {
-
-            /*
-            m_json_converter.set_inserts_vector(j);
-            m_inserts = m_json_converter.get_inserts_vector();  
-            */
-            m_query = "";
-            
-            for (const auto& insert : m_inserts ) {
-                m_query = m_query + insert + "\n" ;
-            }
-
-	        kafka_exporter(j, m_query);
-        }
-
-        protected:
-            typedef OpmonService inherited;
-
-        private:
-
-        RdKafka::Producer *m_producer;
-
-        void kafka_exporter(const nlohmann::json j, std::string topic)
-        {
-            try
+	        try
             {
                 // serialize it to BSON
                 m_producer->produce(m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, const_cast<char *>(j.dump().c_str()), j.dump().size(), nullptr, 0, 0, nullptr, nullptr);
@@ -109,7 +87,6 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
                     ers::error(cannot_produce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
                 }
 
-                std::cout << "Sent message" << std::endl;
             }
             catch(const std::exception& e)
             {
@@ -117,6 +94,13 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
                 ers::error(cannot_produce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
             }
         }
+
+        protected:
+            typedef OpmonService inherited;
+
+        private:
+
+        RdKafka::Producer *m_producer;
 
         std::string m_host;
         std::string m_port;
@@ -126,7 +110,6 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
         
         std::string m_query;
         const char* m_char_pointer;
-        kafkaopmon::JsonConverter m_json_converter;
 
     };
 
