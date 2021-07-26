@@ -14,7 +14,7 @@ the kafkaopmon URI presents as such: kafka://188.185.122.48:9092/opmonkafka-repo
 Translating in the full, following URI eyample:
 
 ```
-daq_application -c rest://localhost:12345 --name asd -i kafka://188.185.122.48:9092/opmonkafka-reporting
+daq_application -c rest://localhost:12345 --name asd -i kafka://188.185.122.48:9092/kafkaopmon-reporting
 ```
 
 ### Step-by-step :

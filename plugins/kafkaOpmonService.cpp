@@ -79,7 +79,7 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             {
                 // serialize it to BSON
                 m_producer->produce(m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, const_cast<char *>(j.dump().c_str()), j.dump().size(), nullptr, 0, 0, nullptr, nullptr);
-                m_producer->flush(10 * 1000);
+                m_producer->purge(10 * 1000);
                 if (m_producer->outq_len() > 0)
                 {
                     std::string s;

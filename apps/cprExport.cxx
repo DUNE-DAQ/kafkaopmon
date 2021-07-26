@@ -104,9 +104,8 @@ void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tm
 
       //execution_command(adress, message_text);
       std::string json_string((char *) msg->payload(), msg->len());
-      nlohmann::json j = json::parse(json_string);
 
-      m_json_converter.set_inserts_vector(j);
+      m_json_converter.set_inserts_vector(json::parse(json_string));
       inserts_vectors = m_json_converter.get_inserts_vector();  
       
       for (const auto& insert : inserts_vectors ) {
@@ -135,24 +134,6 @@ int main(int argc, char *argv[])
     }
     else
     {
-      
-      /*
-      std::cout << "broker : " << argv[1] << std::endl;
-      std::cout << "broker port: " << argv[2] << std::endl;
-      std::cout << "topic : " << argv[3] << std::endl;
-      std::cout << "db host : " << argv[4] << std::endl;
-      std::cout << "db port : " << argv[5] << std::endl;
-      std::cout << "db path : " << argv[6] << std::endl;
-      std::cout << "db dbname : " << argv[7] << std::endl;
-
-      
-      std::string broker = "188.185.122.48:9092";
-      std::string topic = "opmonkafka-reporting";
-      std::string db_host = "188.185.88.195";
-      std::string db_port = "80";
-      std::string db_path = "insert";
-      std::string db_dbname = "db1";
-      */
 
       //Broker parameters
       std::string broker = argv[1] + std::string(":") + argv[2];
@@ -177,7 +158,7 @@ int main(int argc, char *argv[])
         std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
 
         conf->set("bootstrap.servers", broker, errstr);
-        conf->set("client.id", "kafkaopmonprod", errstr);
+        conf->set("client.id", "kafkaopmonproducer", errstr);
         conf->set("group.id", group_id, errstr);
         
         topics.push_back(topic);
