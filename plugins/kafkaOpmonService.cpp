@@ -1,5 +1,11 @@
-// * This is part of the DUNE DAQ Application Framework, copyright 2020.
-// * Licensing/copyright details are in the COPYING file that you should have received with this code.
+/**
+* @file kafkaOpmonService.cpp kafkaopmon class implementation
+* 
+* This is part of the DUNE DAQ software, copyright 2020.
+* Licensing/copyright details are in the COPYING file that you should have
+* received with this code.
+*/
+
 
 #include "JsonInfluxConverter.hpp"
 
