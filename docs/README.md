@@ -2,19 +2,18 @@
 Kafkaopmon converts a JSON object into an kafka message, ready to be used as a time serie
 
 ## Building and running :
-The library's constructor takes an URI argument. The URI's syntax is the database : Application name: `kafka://<host>:<port>/kafkaTopic`. 
+The library's constructor takes an URI argument. The URI's syntax is the database : Application name: `kafka://<host>:<port>`. 
 
 The library should be used calling the library's "publish" function with as argument a `nlohmann::json` object. More details about the implementation are available in the "Technical information" chapter.
 
 The library output is the return statement from the CPR message and, if successfull, the insertion of the JSON content to the TSDB.
 
 ### URI example :
-the kafkaopmon URI presents as such: kafka://188.185.122.48:9092/opmonkafka-reporting
-
+the kafkaopmon URI presents as such: kafka://188.185.122.48:9092
 Translating in the full, following URI eyample:
 
 ```
-daq_application -c rest://localhost:12345 --name asd -i kafka://188.185.122.48:9092/kafkaopmon-reporting
+daq_application -c rest://localhost:12345 --name asd -i kafka://188.185.122.48:9092/
 ```
 
 ### Step-by-step :
@@ -24,7 +23,7 @@ daq_application -c rest://localhost:12345 --name asd -i kafka://188.185.122.48:9
 4. In a runtime environment, run the call URI
 
 ## Application :
-The application cprExport, available with the module, is made to replace influxopmon, it consumes messages produced on broker = "188.185.122.48:9092" topic = "opmonkafka-reporting" and inserts them into influxDb.
+The application cprExport, available with the module, is made to replace influxopmon, it consumes messages produced on broker = "188.185.122.48:9092" topic = "kafkaopmon-reporting" and inserts them into influxDb.
 
 
 ## Notes :

@@ -22,20 +22,20 @@
 #include <memory>
 #include <stdexcept>
 #include <array>
-#include <curl/curl.h>
 #include <regex>
 
 using json = nlohmann::json;
 
 namespace dunedaq { // namespace dunedaq
 
-    ERS_DECLARE_ISSUE(kafkaopmon, cannot_produce,
+    ERS_DECLARE_ISSUE(kafkaopmon, CannotProduce,
         "Cannot produce to kafka " << error,
         ((std::string)error))
 
-    ERS_DECLARE_ISSUE(kafkaopmon, wrong_URI,
+    ERS_DECLARE_ISSUE(kafkaopmon, WrongURI,
         "Incorrect URI" << uri,
         ((std::string)uri))
+
 } // namespace dunedaq
 
 
@@ -56,27 +56,40 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
             //* 3rd Capturing Group `(\d)`: Matches port
             //* 4th Capturing Group `([^\/?#]+)?`: Matches kafka topic
             
-            std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+)\/([^\/?#]+))");
+            std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+))");
 
             std::smatch uri_match;
             if (!std::regex_match(uri, uri_match, uri_re)) 
             {
-                ers::fatal(wrong_URI(ERS_HERE, " Invalid URI syntax: " + uri));
+                ers::fatal(WrongURI(ERS_HERE, " Invalid URI syntax: " + uri));
             }
 
             m_host = uri_match[2];
             m_port = uri_match[3];
-            m_topic = uri_match[4];
+            m_topic = "kafkaopmon-reporting";
             //Kafka server settings
             std::string brokers = m_host + ":" + m_port;
             std::string errstr;
 
-
             RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
             conf->set("bootstrap.servers", brokers, errstr);
-            conf->set("client.id", std::getenv("DUNEDAQ_APPLICATION_NAME"), errstr);
+            if(errstr != ""){
+                CannotProduce(ERS_HERE, "Bootstrap server error : " + errstr);
+            }
+            if(const char* env_p = std::getenv("DUNEDAQ_APPLICATION_NAME")) 
+                conf->set("client.id", env_p, errstr);
+            else
+                conf->set("client.id", "erskafkaOpmonproducerdefault", errstr);
+
+            if(errstr != ""){
+                CannotProduce(ERS_HERE, "Producer configuration error : " + errstr);
+            }
             //Create producer instance
             m_producer = RdKafka::Producer::create(conf, errstr);
+
+            if(errstr != ""){
+                CannotProduce(ERS_HERE, "Producer creation error : " + errstr);
+            }
         }
 
         void publish(nlohmann::json j) override
@@ -84,20 +97,13 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
 	        try
             {
                 // serialize it to BSON
-                m_producer->produce(m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, const_cast<char *>(j.dump().c_str()), j.dump().size(), nullptr, 0, 0, nullptr, nullptr);
-                m_producer->purge(10 * 1000);
-                if (m_producer->outq_len() > 0)
-                {
-                    std::string s;
-                    s.push_back(m_producer->outq_len());
-                    ers::error(cannot_produce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
-                }
-
+                RdKafka::ErrorCode err = m_producer->produce(m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, const_cast<char *>(j.dump().c_str()), j.dump().size(), nullptr, 0, 0, nullptr, nullptr);
+                if (err != RdKafka::ERR_NO_ERROR) { CannotProduce(ERS_HERE, "% Failed to produce " + RdKafka::err2str(err));}
             }
             catch(const std::exception& e)
             {
                 std::string s = e.what();
-                ers::error(cannot_produce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
+                ers::error(CannotProduce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
             }
         }
 

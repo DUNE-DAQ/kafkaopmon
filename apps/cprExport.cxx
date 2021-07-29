@@ -20,16 +20,28 @@
 #include <vector>
 #include <cpr/cpr.h>
 #include <nlohmann/json.hpp>
+#include "boost/program_options.hpp"
 
+namespace dunedaq { // namespace dunedaq
 
+    ERS_DECLARE_ISSUE(kafkaopmon, CannotPostToDb,
+        "Cannot post to Influx DB : " << error,
+        ((std::string)error))
 
-ERS_DECLARE_ISSUE(kafkaopmon, cannot_post_to_DB,
-    "Cannot post to Influx DB " << error,
-    ((std::string)error))
+    ERS_DECLARE_ISSUE(kafkaopmon, CannotCreateConsumer,
+        "Cannot create consumer : " << fatal,
+        ((std::string)fatal))
 
-ERS_DECLARE_ISSUE(kafkaopmon, cannot_create_consumer,
-    "Cannot create consumer " << fatal,
-    ((std::string)fatal))
+    ERS_DECLARE_ISSUE(kafkaopmon, CannotConsumeMessage,
+        "Cannot consume message : " << error,
+        ((std::string)error))
+
+    ERS_DECLARE_ISSUE(kafkaopmon, IncorrectParameters,
+        "Incorrect parameters : " << fatal,
+        ((std::string)fatal))
+}
+
+namespace bpo = boost::program_options;
 
 static volatile sig_atomic_t run = 1;
 static dunedaq::influxopmon::JsonConverter m_json_converter;
@@ -65,7 +77,7 @@ consume_batch (RdKafka::KafkaConsumer *consumer, size_t batch_size, int batch_tm
       break;
 
     default:
-      ers::fatal(ers::InternalMessage(ERS_HERE, "%% Unhandled consumer error: " + msg->errstr()));
+      ers::error(dunedaq::kafkaopmon::CannotConsumeMessage(ERS_HERE, "%% Unhandled consumer error: " + msg->errstr()));
       run = 0;
       delete msg;
       return msgs;
@@ -87,9 +99,9 @@ void execution_command(const std::string& adress, const std::string& cmd) {
   cpr::Response response = cpr::Post(cpr::Url{adress}, cpr::Body{cmd});
   //std::cout << cmd << std::endl;  
   if (response.status_code >= 400) {
-      ers::error(ers::InternalMessage(ERS_HERE, "Error [" + std::to_string(response.status_code) + "] making request"));
+      ers::error(dunedaq::kafkaopmon::CannotPostToDb(ERS_HERE, "Error [" + std::to_string(response.status_code) + "] making request"));
   } else if (response.status_code == 0) {
-      ers::error(ers::InternalMessage(ERS_HERE, "Query returned 0"));
+      ers::error(dunedaq::kafkaopmon::CannotPostToDb(ERS_HERE, "Query returned 0"));
   } 
 }
 
@@ -125,57 +137,96 @@ void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tm
 
 int main(int argc, char *argv[])
 {
+    std::string broker;
+    std::string topic;
+    std::string db_host;
+    std::string db_port;
+    std::string db_path;
+    std::string db_dbname;
+    std::string topic_str;
+    std::vector<std::string> topics;    
+    //Bulk consume parameters
+    int batch_size = 100;
+    int batch_tmout = 1000;
+    //Kafka server settings
+    std::string errstr;
+    RdKafka::KafkaConsumer *consumer;
+    //get parameters
+    
+
+
+    bpo::options_description desc{"example: -broker 188.185.122.48:9092 -topic kafkaopmon-reporting -dbhost 188.185.88.195 -dbport 80 -dbpath insert -dbname db1"};
+    desc.add_options()
+      ("help,h", "Help screen")
+      ("broker,b", bpo::value<std::string>()->default_value("188.185.122.48:9092"), "Broker")
+      ("topic,t", bpo::value<std::string>()->default_value("kafkaopmon-reporting"), "Topic")
+      ("dbhost,ho", bpo::value<std::string>()->default_value("188.185.88.195"), "Database host")
+      ("dbport,po", bpo::value<std::string>()->default_value("80"), "Database port")
+      ("dbpath,pa", bpo::value<std::string>()->default_value("insert"), "Database path")
+      ("dbname,n", bpo::value<std::string>()->default_value("db1"), "Database name");
+
+    bpo::variables_map vm;
+      
+    try 
+    {
+      auto parsed = bpo::command_line_parser(argc, argv).options(desc).run();
+      bpo::store(parsed, vm);
+    }
+    catch (bpo::error const& e) 
+    {
+      ers::error(dunedaq::kafkaopmon::IncorrectParameters(ERS_HERE, e.what()));
+    }
+
+    if (vm.count("help")) {
+      std::cout << desc << std::endl;
+      return 0;
+    }
+    
+    broker = vm["broker"].as<std::string>();     
+    topic = vm["topic"].as<std::string>();
+    db_host = vm["dbhost"].as<std::string>();
+    db_port = vm["dbport"].as<std::string>();
+    db_path = vm["dbpath"].as<std::string>();
+    db_dbname = vm["dbname"].as<std::string>();
+
+    //Broker parameters
+
+    try
+    {     
+      RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+
+      srand((unsigned) time(0));
+      std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
+
+      conf->set("bootstrap.servers", broker, errstr);
+      if(errstr != ""){
+        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+      }
+      conf->set("client.id", "kafkaopmonproducer", errstr);
+      if(errstr != ""){
+        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+      }
+      conf->set("group.id", group_id, errstr);
+      if(errstr != ""){
+        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+      }
+      topics.push_back(topic);
+      consumer = RdKafka::KafkaConsumer::create(conf, errstr);
+      if(errstr != ""){
+        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+      }
+      if (consumer != 0) consumer->subscribe(topics);
+      else std::cout << errstr << std::endl;
+
+      consumerLoop(consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
+      // Close and destroy consumer 
+      consumer->close();
+      delete consumer;
+    }
+    catch( ers::IssueCatcherAlreadySet & ex )
+    {
+      ers::error( ex );
+    }
   
-    std::cout << "Parameters count : " << argc << std::endl; 
-
-    if(argc != 8)
-    {
-      ers::fatal(ers::InternalMessage(ERS_HERE, "Invalid parameters."));
-    }
-    else
-    {
-
-      //Broker parameters
-      std::string broker = argv[1] + std::string(":") + argv[2];
-      std::string topic =  argv[3];
-      std::string db_host = argv[4];
-      std::string db_port = argv[5];
-      std::string db_path = argv[6];
-      std::string db_dbname = argv[7];
-      std::string topic_str;
-      std::vector<std::string> topics;
-      //Bulk consume parameters
-      int batch_size = 100;
-      int batch_tmout = 1000;
-      //Kafka server settings
-      std::string errstr;
-      RdKafka::KafkaConsumer *consumer;
-      try
-      {     
-        RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
-
-        srand((unsigned) time(0));
-        std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
-
-        conf->set("bootstrap.servers", broker, errstr);
-        conf->set("client.id", "kafkaopmonproducer", errstr);
-        conf->set("group.id", group_id, errstr);
-        
-        topics.push_back(topic);
-        consumer = RdKafka::KafkaConsumer::create(conf, errstr);
-        if (consumer != 0)
-        consumer->subscribe(topics);
-        else ers::fatal(kafkaopmon::cannot_create_consumer(ERS_HERE, errstr));
-
-        consumerLoop(consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
-        // Close and destroy consumer 
-        consumer->close();
-        delete consumer;
-      }
-      catch( ers::IssueCatcherAlreadySet & ex )
-      {
-        ers::error( ex );
-      }
-    }
     return 0;
 }
