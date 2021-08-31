@@ -22,6 +22,8 @@
 #include <nlohmann/json.hpp>
 #include "boost/program_options.hpp"
 
+#include <memory>
+
 namespace dunedaq { // namespace dunedaq
 
     ERS_DECLARE_ISSUE(kafkaopmon, CannotPostToDb,
@@ -55,31 +57,31 @@ static int64_t now () {
     return ((int64_t)tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 }
 
-static std::vector<RdKafka::Message *>
-consume_batch (RdKafka::KafkaConsumer *consumer, size_t batch_size, int batch_tmout) {
+static std::vector< std::unique_ptr<RdKafka::Message> >
+consume_batch (RdKafka::KafkaConsumer& consumer, size_t batch_size, int batch_tmout) {
 
-  std::vector<RdKafka::Message *> msgs;
+  std::vector< std::unique_ptr<RdKafka::Message> > msgs;
   msgs.reserve(batch_size);
 
   int64_t end = now() + batch_tmout;
   int remaining_timeout = batch_tmout;
 
   while (msgs.size() < batch_size) {
-    RdKafka::Message *msg = consumer->consume(remaining_timeout);
+    auto msg = std::unique_ptr<RdKafka::Message>( consumer.consume(remaining_timeout) );
+
+    // TODO: JCF, Aug-31-2021, jcfree@fnal.gov: If consumer.consume doesn't throw when something goes wrong, then add a check that msg isn't still nullptr
 
     switch (msg->err()) {
     case RdKafka::ERR__TIMED_OUT:
-      delete msg;
       return msgs;
 
     case RdKafka::ERR_NO_ERROR:
-      msgs.push_back(msg);
+      msgs.push_back(std::move(msg));
       break;
 
     default:
       ers::error(dunedaq::kafkaopmon::CannotConsumeMessage(ERS_HERE, "%% Unhandled consumer error: " + msg->errstr()));
       run = 0;
-      delete msg;
       return msgs;
     }
 
@@ -105,7 +107,7 @@ void execution_command(const std::string& adress, const std::string& cmd) {
   } 
 }
 
-void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tmout, std::string adress)
+void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tmout, std::string adress)
 {
   while (run) 
   {
@@ -123,8 +125,6 @@ void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tm
       for (const auto& insert : inserts_vectors ) {
           m_query = m_query + insert + "\n" ;
       }
-
-      delete msg;
     }
     if(m_query!="")
     {
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
     int batch_tmout = 1000;
     //Kafka server settings
     std::string errstr;
-    RdKafka::KafkaConsumer *consumer;
+
     //get parameters
     
 
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
 
     try
     {     
-      RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+      auto conf = std::unique_ptr<RdKafka::Conf>( RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL) );
 
       srand((unsigned) time(0));
       std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
@@ -211,17 +211,21 @@ int main(int argc, char *argv[])
         ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
       topics.push_back(topic);
-      consumer = RdKafka::KafkaConsumer::create(conf, errstr);
+
+      auto consumer = std::unique_ptr<RdKafka::KafkaConsumer>( RdKafka::KafkaConsumer::create(conf.get(), errstr) );
+
       if(errstr != ""){
         ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
-      if (consumer != 0) consumer->subscribe(topics);
-      else std::cout << errstr << std::endl;
 
-      consumerLoop(consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
-      // Close and destroy consumer 
+      // TODO: JCF, Aug-31-2021, jcfree@fnal.gov: seems we should end the program if ptr-to-consumer is null?
+
+      if (consumer) consumer->subscribe(topics);
+      else std::cout << errstr << std::endl;      
+
+      consumerLoop(*consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
+
       consumer->close();
-      delete consumer;
     }
     catch( ers::IssueCatcherAlreadySet & ex )
     {
