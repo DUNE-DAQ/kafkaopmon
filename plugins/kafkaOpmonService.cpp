@@ -8,7 +8,6 @@
 
 
 #include "JsonInfluxConverter.hpp"
-
 #include "opmonlib/OpmonService.hpp"
 #include <librdkafka/rdkafkacpp.h>
 #include <nlohmann/json.hpp>
@@ -50,11 +49,10 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
         {
 
             //Regex rescription:
-            //"([a-zA-Z]+):\/\/([^:\/?#\s]+)+(?::(\d+))?(\/[^?#\s]+)?(?:\?(?:db=([^?#\s]+)))"
             //* 1st Capturing Group `([a-zA-Z])`: Matches protocol
             //* 2nd Capturing Group `([^:\/?#\s])+`: Matches hostname
             //* 3rd Capturing Group `(\d)`: Matches port
-            //* 4th Capturing Group `([^\/?#]+)?`: Matches kafka topic
+
             
             std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+))");
 
