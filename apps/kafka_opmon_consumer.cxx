@@ -1,11 +1,11 @@
 // * This is part of the DUNE DAQ Application Framework, copyright 2020.
 // * Licensing/copyright details are in the COPYING file that you should have received with this code.
 #include "JsonInfluxConverter.hpp"
-
 #include <ers/SampleIssues.hpp>
 #include <ers/OutputStream.hpp>
 #include <ers/StreamManager.hpp>
 #include <regex.h>
+#include <utility>
 #include <ers/ers.hpp>
 #include <iostream>
 #include <iomanip>
@@ -41,7 +41,7 @@ namespace dunedaq { // namespace dunedaq
     ERS_DECLARE_ISSUE(kafkaopmon, IncorrectParameters,
         "Incorrect parameters : " << fatal,
         ((std::string)fatal))
-}
+} // namespace dunedaq
 
 namespace bpo = boost::program_options;
 
@@ -49,7 +49,7 @@ static volatile sig_atomic_t run = 1;
 static dunedaq::influxopmon::JsonConverter m_json_converter;
 static std::vector<std::string> inserts_vectors;
 static std::string m_query = "";
-
+static uint seed = 0;
 
 static int64_t now () {
     struct timeval tv;
@@ -69,7 +69,7 @@ consume_batch (RdKafka::KafkaConsumer& consumer, size_t batch_size, int batch_tm
   while (msgs.size() < batch_size) {
     auto msg = std::unique_ptr<RdKafka::Message>( consumer.consume(remaining_timeout) );
 
-    // TODO: JCF, Aug-31-2021, jcfree@fnal.gov: If consumer.consume doesn't throw when something goes wrong, then add a check that msg isn't still nullptr
+    if(msg == nullptr) ers::error(dunedaq::kafkaopmon::CannotConsumeMessage(ERS_HERE, "%% Consumer error: Message is null"));
 
     switch (msg->err()) {
     case RdKafka::ERR__TIMED_OUT:
@@ -117,7 +117,7 @@ void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tm
     {
 
       //execution_command(adress, message_text);
-      std::string json_string((char *) msg->payload(), msg->len());
+      std::string json_string(static_cast<char *>(msg->payload()) , msg->len());
 
       m_json_converter.set_inserts_vector(json::parse(json_string));
       inserts_vectors = m_json_converter.get_inserts_vector();  
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
     }
 
     if (vm.count("help")) {
-      std::cout << desc << std::endl;
+      TLOG() << desc << std::endl;
       return 0;
     }
     
@@ -196,32 +196,30 @@ int main(int argc, char *argv[])
       auto conf = std::unique_ptr<RdKafka::Conf>( RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL) );
 
       srand((unsigned) time(0));
-      std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
+      std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(seed);
 
       conf->set("bootstrap.servers", broker, errstr);
       if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
       conf->set("client.id", "kafkaopmonproducer", errstr);
       if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
       conf->set("group.id", group_id, errstr);
       if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
       topics.push_back(topic);
 
       auto consumer = std::unique_ptr<RdKafka::KafkaConsumer>( RdKafka::KafkaConsumer::create(conf.get(), errstr) );
 
       if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
 
-      // TODO: JCF, Aug-31-2021, jcfree@fnal.gov: seems we should end the program if ptr-to-consumer is null?
-
       if (consumer) consumer->subscribe(topics);
-      else std::cout << errstr << std::endl;      
+      else ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
 
       consumerLoop(*consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
 
