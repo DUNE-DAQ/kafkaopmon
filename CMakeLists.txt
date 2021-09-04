@@ -18,8 +18,8 @@ FIND_PACKAGE(Boost 1.70.0 COMPONENTS program_options REQUIRED)
 
 daq_add_plugin(kafkaOpmonService duneOpmonService LINK_LIBRARIES opmonlib::opmonlib RdKafka::rdkafka RdKafka::rdkafka++ ers::ers)
 target_include_directories(kafkaopmon_kafkaOpmonService_duneOpmonService PUBLIC)
-daq_add_application(kafkaOpmonConsumer cprExport.cxx LINK_LIBRARIES opmonlib::opmonlib RdKafka::rdkafka++ CURL::libcurl ers::ers ${CPR_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY})
-target_include_directories(kafkaOpmonConsumer PUBLIC ${CPR_INCLUDE_DIR})
+daq_add_application(kafka_opmon_consumer kafka_opmon_consumer.cxx LINK_LIBRARIES opmonlib::opmonlib RdKafka::rdkafka++ CURL::libcurl ers::ers ${CPR_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY})
+target_include_directories(kafka_opmon_consumer PUBLIC ${CPR_INCLUDE_DIR})
 
 
 ##############################################################################
