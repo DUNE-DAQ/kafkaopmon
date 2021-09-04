@@ -1,12 +1,14 @@
 // * This is part of the DUNE DAQ Application Framework, copyright 2020.
 // * Licensing/copyright details are in the COPYING file that you should have received with this code.
 #include "JsonInfluxConverter.hpp"
-#include <ers/SampleIssues.hpp>
-#include <ers/OutputStream.hpp>
-#include <ers/StreamManager.hpp>
+#include "boost/program_options.hpp"
+#include "ers/ers.hpp"
+#include "librdkafka/rdkafkacpp.h"
+#include "cpr/cpr.h"
+#include "nlohmann/json.hpp"
+#include "curl/curl.h"
 #include <regex.h>
 #include <utility>
-#include <ers/ers.hpp>
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -14,13 +16,9 @@
 #include <cstdio>
 #include <csignal>
 #include <cstring>
-#include <librdkafka/rdkafkacpp.h>
 #include <sys/time.h>
-#include <curl/curl.h>
 #include <vector>
-#include <cpr/cpr.h>
-#include <nlohmann/json.hpp>
-#include "boost/program_options.hpp"
+
 
 #include <memory>
 
