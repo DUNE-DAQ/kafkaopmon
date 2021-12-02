@@ -10,7 +10,7 @@ find_package(CPR REQUIRED)
 find_package(CURL REQUIRED)
 find_package(RdKafka REQUIRED)
 find_package(ers REQUIRED)     
-FIND_PACKAGE(Boost 1.70.0 COMPONENTS program_options REQUIRED)
+find_package(Boost COMPONENTS program_options REQUIRED)
 
 
 ##############################################################################
