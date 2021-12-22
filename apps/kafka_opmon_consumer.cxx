@@ -1,12 +1,14 @@
 // * This is part of the DUNE DAQ Application Framework, copyright 2020.
 // * Licensing/copyright details are in the COPYING file that you should have received with this code.
 #include "JsonInfluxConverter.hpp"
-
-#include <ers/SampleIssues.hpp>
-#include <ers/OutputStream.hpp>
-#include <ers/StreamManager.hpp>
+#include "boost/program_options.hpp"
+#include "ers/ers.hpp"
+#include "librdkafka/rdkafkacpp.h"
+#include "cpr/cpr.h"
+#include "nlohmann/json.hpp"
+#include "curl/curl.h"
 #include <regex.h>
-#include <ers/ers.hpp>
+#include <utility>
 #include <iostream>
 #include <iomanip>
 #include <string>
@@ -14,13 +16,11 @@
 #include <cstdio>
 #include <csignal>
 #include <cstring>
-#include <librdkafka/rdkafkacpp.h>
 #include <sys/time.h>
-#include <curl/curl.h>
 #include <vector>
-#include <cpr/cpr.h>
-#include <nlohmann/json.hpp>
-#include "boost/program_options.hpp"
+
+
+#include <memory>
 
 namespace dunedaq { // namespace dunedaq
 
@@ -39,7 +39,7 @@ namespace dunedaq { // namespace dunedaq
     ERS_DECLARE_ISSUE(kafkaopmon, IncorrectParameters,
         "Incorrect parameters : " << fatal,
         ((std::string)fatal))
-}
+} // namespace dunedaq
 
 namespace bpo = boost::program_options;
 
@@ -47,7 +47,7 @@ static volatile sig_atomic_t run = 1;
 static dunedaq::influxopmon::JsonConverter m_json_converter;
 static std::vector<std::string> inserts_vectors;
 static std::string m_query = "";
-
+static uint seed = 0;
 
 static int64_t now () {
     struct timeval tv;
@@ -55,31 +55,31 @@ static int64_t now () {
     return ((int64_t)tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 }
 
-static std::vector<RdKafka::Message *>
-consume_batch (RdKafka::KafkaConsumer *consumer, size_t batch_size, int batch_tmout) {
+static std::vector< std::unique_ptr<RdKafka::Message> >
+consume_batch (RdKafka::KafkaConsumer& consumer, size_t batch_size, int batch_tmout) {
 
-  std::vector<RdKafka::Message *> msgs;
+  std::vector< std::unique_ptr<RdKafka::Message> > msgs;
   msgs.reserve(batch_size);
 
   int64_t end = now() + batch_tmout;
   int remaining_timeout = batch_tmout;
 
   while (msgs.size() < batch_size) {
-    RdKafka::Message *msg = consumer->consume(remaining_timeout);
+    auto msg = std::unique_ptr<RdKafka::Message>( consumer.consume(remaining_timeout) );
+
+    if(msg == nullptr) ers::error(dunedaq::kafkaopmon::CannotConsumeMessage(ERS_HERE, "%% Consumer error: Message is null"));
 
     switch (msg->err()) {
     case RdKafka::ERR__TIMED_OUT:
-      delete msg;
       return msgs;
 
     case RdKafka::ERR_NO_ERROR:
-      msgs.push_back(msg);
+      msgs.push_back(std::move(msg));
       break;
 
     default:
       ers::error(dunedaq::kafkaopmon::CannotConsumeMessage(ERS_HERE, "%% Unhandled consumer error: " + msg->errstr()));
       run = 0;
-      delete msg;
       return msgs;
     }
 
@@ -105,7 +105,7 @@ void execution_command(const std::string& adress, const std::string& cmd) {
   } 
 }
 
-void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tmout, std::string adress)
+void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tmout, std::string adress)
 {
   while (run) 
   {
@@ -115,7 +115,7 @@ void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tm
     {
 
       //execution_command(adress, message_text);
-      std::string json_string((char *) msg->payload(), msg->len());
+      std::string json_string(static_cast<char *>(msg->payload()) , msg->len());
 
       m_json_converter.set_inserts_vector(json::parse(json_string));
       inserts_vectors = m_json_converter.get_inserts_vector();  
@@ -123,8 +123,6 @@ void consumerLoop(RdKafka::KafkaConsumer *consumer, int batch_size, int batch_tm
       for (const auto& insert : inserts_vectors ) {
           m_query = m_query + insert + "\n" ;
       }
-
-      delete msg;
     }
     if(m_query!="")
     {
@@ -150,7 +148,7 @@ int main(int argc, char *argv[])
     int batch_tmout = 1000;
     //Kafka server settings
     std::string errstr;
-    RdKafka::KafkaConsumer *consumer;
+
     //get parameters
     
 
@@ -178,7 +176,7 @@ int main(int argc, char *argv[])
     }
 
     if (vm.count("help")) {
-      std::cout << desc << std::endl;
+      TLOG() << desc << std::endl;
       return 0;
     }
     
@@ -193,35 +191,37 @@ int main(int argc, char *argv[])
 
     try
     {     
-      RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+      auto conf = std::unique_ptr<RdKafka::Conf>( RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL) );
 
       srand((unsigned) time(0));
-      std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(rand());
+      std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(seed);
 
       conf->set("bootstrap.servers", broker, errstr);
       if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
       conf->set("client.id", "kafkaopmonproducer", errstr);
       if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
       conf->set("group.id", group_id, errstr);
       if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
       topics.push_back(topic);
-      consumer = RdKafka::KafkaConsumer::create(conf, errstr);
-      if(errstr != ""){
-        ers::error(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
-      }
-      if (consumer != 0) consumer->subscribe(topics);
-      else std::cout << errstr << std::endl;
 
-      consumerLoop(consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
-      // Close and destroy consumer 
+      auto consumer = std::unique_ptr<RdKafka::KafkaConsumer>( RdKafka::KafkaConsumer::create(conf.get(), errstr) );
+
+      if(errstr != ""){
+        ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+      }
+
+      if (consumer) consumer->subscribe(topics);
+      else ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
+
+      consumerLoop(*consumer, batch_size, batch_tmout, db_host + ":" + db_port + "/" + db_path + "?db=" + db_dbname);
+
       consumer->close();
-      delete consumer;
     }
     catch( ers::IssueCatcherAlreadySet & ex )
     {

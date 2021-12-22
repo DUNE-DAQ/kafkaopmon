@@ -7,6 +7,9 @@ find_dependency(opmonlib)
 find_dependency(CPR)
 find_dependency(CURL)
 find_dependency(RdKafka)
+find_dependency(ers)     
+find_dependency(Boost COMPONENTS program_options)
+
 
 if (EXISTS ${CMAKE_SOURCE_DIR}/@PROJECT_NAME@)
 
