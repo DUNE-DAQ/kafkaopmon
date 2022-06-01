@@ -33,6 +33,9 @@ target_include_directories(kafka_opmon_consumer PUBLIC ${CPR_INCLUDE_DIR})
 # No unit tests written
 
 ##############################################################################
+# test application
+
+daq_add_application( test_flattener test_flattener.cxx TEST LINK_LIBRARIES kafkaopmon)
 
 daq_install()
 
