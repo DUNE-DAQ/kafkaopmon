@@ -7,7 +7,7 @@
 */
 
 
-#include "JsonInfluxConverter.hpp"
+#include "JsonFlattener.hpp"
 
 #include "opmonlib/OpmonService.hpp"
 #include <librdkafka/rdkafkacpp.h>
@@ -98,39 +98,61 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
 
         void publish(nlohmann::json j) override
         {
-	        try
-            {
-                // serialize it to BSON
-                RdKafka::ErrorCode err = m_producer->produce(m_topic, RdKafka::Topic::PARTITION_UA, RdKafka::Producer::RK_MSG_COPY, const_cast<char *>(j.dump().c_str()), j.dump().size(), nullptr, 0, 0, nullptr, nullptr);
-                if (err != RdKafka::ERR_NO_ERROR) { CannotProduce(ERS_HERE, "% Failed to produce " + RdKafka::err2str(err));}
+
+	  std::vector<nlohmann::json> infos;
+	  try {
+	    JsonFlattener jf(j);
+	    infos = jf.get();
+	  }
+	  catch ( const ers::Issue & i ) {
+	    ers::error( i );
+	  }
+
+	  for ( const auto & report : infos ) {
+
+	    std::string partition = report["partition_id"].get<std::string>();
+	    
+	    try {
+	      // serialize it to BSON
+	      RdKafka::ErrorCode err = m_producer->produce(m_topic,
+							   RdKafka::Topic::PARTITION_UA,
+							   RdKafka::Producer::RK_MSG_COPY,
+							   const_cast<char *>(report.dump().c_str()),
+							   report.dump().size(),
+							   & partition,
+							   0,
+							   0,
+							   nullptr );
+	      
+	      if (err != RdKafka::ERR_NO_ERROR) { CannotProduce(ERS_HERE, "% Failed to produce " + RdKafka::err2str(err));}
             }
             catch(const std::exception& e)
             {
                 std::string s = e.what();
                 ers::error(CannotProduce(ERS_HERE, "Error [" + s + "] message(s) were not delivered"));
             }
-        }
-
-        protected:
-            typedef OpmonService inherited;
-
-          
-
-        private:
-
-        RdKafka::Producer *m_producer;
-
-        std::string m_host;
-        std::string m_port;
-        std::string m_topic;
-        
-        std::vector<std::string> m_inserts;
-        
-        std::string m_query;
-        const char* m_char_pointer;
-
+	  }
+	}
+    protected:
+      typedef OpmonService inherited;
+      
+      
+      
+    private:
+      
+      RdKafka::Producer *m_producer;
+      
+      std::string m_host;
+      std::string m_port;
+      std::string m_topic;
+      
+      std::vector<std::string> m_inserts;
+      
+      std::string m_query;
+      const char* m_char_pointer;
+      
     };
-
+  
 } // namespace dunedaq::kafkaopmon
 
 extern "C" {
