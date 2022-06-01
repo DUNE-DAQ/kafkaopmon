@@ -13,6 +13,10 @@ find_package(ers REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
 
 
+
+daq_add_library(*.cpp LINK_LIBRARIES opmonlib::opmonlib)
+
+
 ##############################################################################
 # Plugins
 
