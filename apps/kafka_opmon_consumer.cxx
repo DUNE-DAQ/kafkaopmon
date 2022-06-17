@@ -133,6 +133,36 @@ void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tm
   }
 }
 
+
+class influx_callback : public RdKafka::ConsumeCb {
+
+  std::string m_query;
+  
+public:
+  influx_callback( std::string db_host, std::string db_port,
+		   std::string path = "/write",
+		   std::string db_name = "influxdb" )
+    : m_query( db_host + ":" + db_port + path + "?db=" + m_dbname )
+  { ; }		   
+
+  influx_callback( std::string query ) 
+    : m_query( query )
+  { ; }		   
+  
+  virtual void consume_cb( RdKafka::Message & m, void * /*opaque*/ ) override {
+
+    std::string json_string(static_cast<char *>(m.payload()) , m.len());
+
+    
+
+        //TODO
+  }
+  
+  
+};
+  
+
+
 int main(int argc, char *argv[])
 {
     std::string broker;
@@ -156,9 +186,9 @@ int main(int argc, char *argv[])
     bpo::options_description desc{"example: -broker 188.185.122.48:9092 -topic kafkaopmon-reporting -dbhost 188.185.88.195 -dbport 80 -dbpath insert -dbname db1"};
     desc.add_options()
       ("help,h", "Help screen")
-      ("broker,b", bpo::value<std::string>()->default_value("188.185.122.48:9092"), "Broker")
-      ("topic,t", bpo::value<std::string>()->default_value("kafkaopmon-reporting"), "Topic")
-      ("dbhost,ho", bpo::value<std::string>()->default_value("188.185.88.195"), "Database host")
+      ("broker,b", bpo::value<std::string>()->default_value("monkafka.cern.ch:30092"), "Broker")
+      ("topic,t", bpo::value<std::string>()->default_value("opmon"), "Topic")
+      ("dbhost,ho", bpo::value<std::string>()->default_value("opmondb.cern.ch:31002"), "Database host")
       ("dbport,po", bpo::value<std::string>()->default_value("80"), "Database port")
       ("dbpath,pa", bpo::value<std::string>()->default_value("insert"), "Database path")
       ("dbname,n", bpo::value<std::string>()->default_value("db1"), "Database name");
@@ -194,13 +224,13 @@ int main(int argc, char *argv[])
       auto conf = std::unique_ptr<RdKafka::Conf>( RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL) );
 
       srand((unsigned) time(0));
-      std::string group_id = "dunedqm-ErrorPlatform-group" + std::to_string(seed);
+      std::string group_id = "opmon_microservices";
 
       conf->set("bootstrap.servers", broker, errstr);
       if(errstr != ""){
         ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
-      conf->set("client.id", "kafkaopmonproducer", errstr);
+      conf->set("client.id", "opmon_microservice-0", errstr);
       if(errstr != ""){
         ers::fatal(dunedaq::kafkaopmon::CannotCreateConsumer(ERS_HERE, errstr));
       }
