@@ -55,6 +55,37 @@ static int64_t now () {
     return ((int64_t)tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 }
 
+class influx_callback : public RdKafka::ConsumeCb {
+
+  std::string m_query;
+
+public:
+  influx_callback( std::string db_host, std::string db_port,
+		   std::string path = "/write",
+		   std::string db_name = "influxdb" )
+    : m_query( db_host + ":" + db_port + path + "?db=" + m_dbname )
+  { ; }
+
+  influx_callback( std::string query )
+    : m_query( query )
+  { ; }
+
+  virtual void consume_cb( RdKafka::Message & m, void * /*opaque*/ ) override {
+
+    std::string json_string(static_cast<char *>(m.payload()) , m.len());
+
+    json message = json::parse( json_string );
+
+    std::cout << message << std::endl;
+
+    //TODO
+    // create query and send
+  }
+
+
+};
+
+
 static std::vector< std::unique_ptr<RdKafka::Message> >
 consume_batch (RdKafka::KafkaConsumer& consumer, size_t batch_size, int batch_tmout) {
 
@@ -107,62 +138,38 @@ void execution_command(const std::string& adress, const std::string& cmd) {
 
 void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tmout, std::string adress)
 {
+
   while (run)
   {
+   consumer.consume_callback( )
 
     auto msgs = consume_batch(consumer, batch_size, batch_tmout);
     for (auto &msg : msgs)
     {
 
-      //execution_command(adress, message_text);
-      std::string json_string(static_cast<char *>(msg->payload()) , msg->len());
+     //execution_command(adress, message_text);
+     std::string json_string(static_cast<char *>(msg->payload()) , msg->len());
 
-      m_json_converter.set_inserts_vector(json::parse(json_string));
-      inserts_vectors = m_json_converter.get_inserts_vector();
+     json message = json::parse( json_string );
 
-      for (const auto& insert : inserts_vectors ) {
-          m_query = m_query + insert + "\n" ;
-      }
-    }
-    if(m_query!="")
-    {
-      execution_command(adress, m_query);
-      m_query = "";
-    }
+     std::cout << message << std::endl ;
+    //  m_json_converter.set_inserts_vector(json::parse(json_string));
+    //  inserts_vectors = m_json_converter.get_inserts_vector();
+    //
+    //  for (const auto& insert : inserts_vectors ) {
+    //      m_query = m_query + insert + "\n" ;
+    //  }
+    // }
+    // if(m_query!="")
+    // {
+    //  execution_command(adress, m_query);
+    //  m_query = "";
+    // }
 
   }
 }
 
 
-class influx_callback : public RdKafka::ConsumeCb {
-
-  std::string m_query;
-
-public:
-  influx_callback( std::string db_host, std::string db_port,
-		   std::string path = "/write",
-		   std::string db_name = "influxdb" )
-    : m_query( db_host + ":" + db_port + path + "?db=" + m_dbname )
-  { ; }
-
-  influx_callback( std::string query )
-    : m_query( query )
-  { ; }
-
-  virtual void consume_cb( RdKafka::Message & m, void * /*opaque*/ ) override {
-
-    std::string json_string(static_cast<char *>(m.payload()) , m.len());
-
-    json message = json::parse( json_string );
-
-    std::cout << message << std::endl;
-
-    //TODO
-    // create query and send
-  }
-
-
-};
 
 
 
