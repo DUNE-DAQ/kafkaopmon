@@ -97,29 +97,29 @@ void execution_command(const std::string& adress, const std::string& cmd) {
 
   //std::cout << adress << std::endl;
   cpr::Response response = cpr::Post(cpr::Url{adress}, cpr::Body{cmd});
-  //std::cout << cmd << std::endl;  
+  //std::cout << cmd << std::endl;
   if (response.status_code >= 400) {
       ers::error(dunedaq::kafkaopmon::CannotPostToDb(ERS_HERE, "Error [" + std::to_string(response.status_code) + "] making request"));
   } else if (response.status_code == 0) {
       ers::error(dunedaq::kafkaopmon::CannotPostToDb(ERS_HERE, "Query returned 0"));
-  } 
+  }
 }
 
 void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tmout, std::string adress)
 {
-  while (run) 
+  while (run)
   {
 
     auto msgs = consume_batch(consumer, batch_size, batch_tmout);
-    for (auto &msg : msgs) 
+    for (auto &msg : msgs)
     {
 
       //execution_command(adress, message_text);
       std::string json_string(static_cast<char *>(msg->payload()) , msg->len());
 
       m_json_converter.set_inserts_vector(json::parse(json_string));
-      inserts_vectors = m_json_converter.get_inserts_vector();  
-      
+      inserts_vectors = m_json_converter.get_inserts_vector();
+
       for (const auto& insert : inserts_vectors ) {
           m_query = m_query + insert + "\n" ;
       }
@@ -137,30 +137,33 @@ void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tm
 class influx_callback : public RdKafka::ConsumeCb {
 
   std::string m_query;
-  
+
 public:
   influx_callback( std::string db_host, std::string db_port,
 		   std::string path = "/write",
 		   std::string db_name = "influxdb" )
     : m_query( db_host + ":" + db_port + path + "?db=" + m_dbname )
-  { ; }		   
+  { ; }
 
-  influx_callback( std::string query ) 
+  influx_callback( std::string query )
     : m_query( query )
-  { ; }		   
-  
+  { ; }
+
   virtual void consume_cb( RdKafka::Message & m, void * /*opaque*/ ) override {
 
     std::string json_string(static_cast<char *>(m.payload()) , m.len());
 
-    
+    json message = json::parse( json_string );
 
-        //TODO
+    std::cout << message << std::endl;
+
+    //TODO
+    // create query and send
   }
-  
-  
+
+
 };
-  
+
 
 
 int main(int argc, char *argv[])
@@ -172,7 +175,7 @@ int main(int argc, char *argv[])
     std::string db_path;
     std::string db_dbname;
     std::string topic_str;
-    std::vector<std::string> topics;    
+    std::vector<std::string> topics;
     //Bulk consume parameters
     int batch_size = 100;
     int batch_tmout = 1000;
@@ -180,7 +183,7 @@ int main(int argc, char *argv[])
     std::string errstr;
 
     //get parameters
-    
+
 
 
     bpo::options_description desc{"example: -broker 188.185.122.48:9092 -topic kafkaopmon-reporting -dbhost 188.185.88.195 -dbport 80 -dbpath insert -dbname db1"};
@@ -194,13 +197,13 @@ int main(int argc, char *argv[])
       ("dbname,n", bpo::value<std::string>()->default_value("db1"), "Database name");
 
     bpo::variables_map vm;
-      
-    try 
+
+    try
     {
       auto parsed = bpo::command_line_parser(argc, argv).options(desc).run();
       bpo::store(parsed, vm);
     }
-    catch (bpo::error const& e) 
+    catch (bpo::error const& e)
     {
       ers::error(dunedaq::kafkaopmon::IncorrectParameters(ERS_HERE, e.what()));
     }
@@ -209,8 +212,8 @@ int main(int argc, char *argv[])
       TLOG() << desc << std::endl;
       return 0;
     }
-    
-    broker = vm["broker"].as<std::string>();     
+
+    broker = vm["broker"].as<std::string>();
     topic = vm["topic"].as<std::string>();
     db_host = vm["dbhost"].as<std::string>();
     db_port = vm["dbport"].as<std::string>();
@@ -220,7 +223,7 @@ int main(int argc, char *argv[])
     //Broker parameters
 
     try
-    {     
+    {
       auto conf = std::unique_ptr<RdKafka::Conf>( RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL) );
 
       srand((unsigned) time(0));
@@ -257,6 +260,6 @@ int main(int argc, char *argv[])
     {
       ers::error( ex );
     }
-  
+
     return 0;
 }
