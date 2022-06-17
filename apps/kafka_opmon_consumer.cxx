@@ -12,6 +12,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <sstream>
 #include <cstdlib>
 #include <cstdio>
 #include <csignal>
@@ -121,7 +122,22 @@ void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tm
 
      json message = json::parse( json_string );
 
-     std::cout << message << std::endl ;
+     std::string query;
+     query = message["type"].get<std::string>() + ',';
+     query += ("source_id="+message["source_id"].get<std::string>()+',');
+     query += ("partition_id="+message["partition_id"].get<std::string>()+' ');
+     const auto & data = message["__data"];
+     std::stringstream data_stream;
+     for ( auto it = data.begin() ; it != data.end() ; ++it ) {
+       if ( it != data.begin() ) data_stream << ',' ;
+       data_stream << it.key() << '=' << it.value() ;
+     }
+     query += data_stream.str();
+     query += ' ';
+     query += std::to_string(message["__time"].get<uint64_t>() * 1000000000);
+     
+     
+     std::cout << query << std::endl ;
     //  m_json_converter.set_inserts_vector(json::parse(json_string));
     //  inserts_vectors = m_json_converter.get_inserts_vector();
     //
