@@ -47,7 +47,6 @@ namespace bpo = boost::program_options;
 static volatile sig_atomic_t run = 1;
 static dunedaq::influxopmon::JsonConverter m_json_converter;
 static std::vector<std::string> inserts_vectors;
-static std::string m_query = "";
 static uint seed = 0;
 
 static int64_t now () {
@@ -98,7 +97,6 @@ consume_batch (RdKafka::KafkaConsumer& consumer, size_t batch_size, int batch_tm
 
 void execution_command(const std::string& adress, const std::string& cmd) {
 
-  //std::cout << adress << std::endl;
   cpr::Response response = cpr::Post(cpr::Url{adress}, cpr::Body{cmd});
   //std::cout << cmd << std::endl;
   if (response.status_code >= 400) {
@@ -111,6 +109,8 @@ void execution_command(const std::string& adress, const std::string& cmd) {
 void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tmout, std::string adress)
 {
 
+  std::cout << "Using query: " << adress << std::endl;
+  
   while (run)
   {
     auto msgs = consume_batch(consumer, batch_size, batch_tmout);
@@ -136,20 +136,7 @@ void consumerLoop(RdKafka::KafkaConsumer& consumer, int batch_size, int batch_tm
      query += ' ';
      query += std::to_string(message["__time"].get<uint64_t>() * 1000000000);
      
-     
-     std::cout << query << std::endl ;
-    //  m_json_converter.set_inserts_vector(json::parse(json_string));
-    //  inserts_vectors = m_json_converter.get_inserts_vector();
-    //
-    //  for (const auto& insert : inserts_vectors ) {
-    //      m_query = m_query + insert + "\n" ;
-    //  }
-    // }
-    // if(m_query!="")
-    // {
-    //  execution_command(adress, m_query);
-    //  m_query = "";
-    // }
+     execution_command(adress, query);
 
     }
   }
@@ -183,10 +170,10 @@ int main(int argc, char *argv[])
       ("help,h", "Help screen")
       ("broker,b", bpo::value<std::string>()->default_value("monkafka.cern.ch:30092"), "Broker")
       ("topic,t", bpo::value<std::string>()->default_value("opmon"), "Topic")
-      ("dbhost,ho", bpo::value<std::string>()->default_value("opmondb.cern.ch:31002"), "Database host")
-      ("dbport,po", bpo::value<std::string>()->default_value("80"), "Database port")
-      ("dbpath,pa", bpo::value<std::string>()->default_value("insert"), "Database path")
-      ("dbname,n", bpo::value<std::string>()->default_value("db1"), "Database name");
+      ("dbhost,ho", bpo::value<std::string>()->default_value("opmondb.cern.ch"), "Database host")
+      ("dbport,po", bpo::value<std::string>()->default_value("31002"), "Database port")
+      ("dbpath,pa", bpo::value<std::string>()->default_value("write"), "Database path")
+      ("dbname,n", bpo::value<std::string>()->default_value("influxdb"), "Database name");
 
     bpo::variables_map vm;
 
