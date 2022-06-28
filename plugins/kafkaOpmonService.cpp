@@ -110,7 +110,7 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
 
 	  for ( const auto & report : infos ) {
 
-	    std::string partition = report["partition_id"].get<std::string>();
+	    std::string partition = report["tags"]["partition_id"].get<std::string>();
 	    
 	    try {
 	      // serialize it to BSON

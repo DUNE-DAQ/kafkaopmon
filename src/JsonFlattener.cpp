@@ -65,14 +65,13 @@ namespace dunedaq
 	      if (sub_structs.size()) {
 		throw OpmonJSONValidationError(ERS_HERE, pstruct.key() + " contains substructures"); 
 	      }
-
+	      
 	      nlohmann::json entry;
-	      entry[JSONTags::tags] = m_tags;
-	      entry["source_id"] = objpath;
-	      entry["partition_id"] = m_tags["partition_id"];
-	      entry["type"] = pstruct.key();
-	      entry[JSONTags::data] = pstruct.value().at(JSONTags::data);
-	      entry[JSONTags::time] = pstruct.value().at(JSONTags::time);
+	      auto & temp_tags = entry["tags"] = m_tags;
+	      temp_tags["source_id"] = objpath;
+	      entry["measurement"] = pstruct.key();
+	      entry["fields"] = pstruct.value().at(JSONTags::data);
+	      entry["time"] = pstruct.value().at(JSONTags::time).get<uint64_t>()*1000000000;
 	      
 	      m_components.push_back(entry);
 	    }
