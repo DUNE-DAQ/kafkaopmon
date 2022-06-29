@@ -1,5 +1,6 @@
 // * This is part of the DUNE DAQ Application Framework, copyright 2020.
 // * Licensing/copyright details are in the COPYING file that you should have received with this code.
+#include <ctime>
 
 #include "JsonFlattener.hpp"
 
@@ -71,8 +72,12 @@ namespace dunedaq
 	      temp_tags["source_id"] = objpath;
 	      entry["measurement"] = pstruct.key();
 	      entry["fields"] = pstruct.value().at(JSONTags::data);
-	      entry["time"] = pstruct.value().at(JSONTags::time).get<uint64_t>()*1000000000;
-	      
+	      std::time_t seconds = pstruct.value().at(JSONTags::time).get<std::time_t>();
+	      auto local =localtime(& seconds);
+	      char time_c_string[80];
+	      strftime( time_c_string, 80, "%Y-%m-%dT%H:%M:%SZ", local );
+	      std::string time_string(time_c_string);
+	      entry["time"] = time_string;
 	      m_components.push_back(entry);
 	    }
 	  }
