@@ -73,9 +73,9 @@ namespace dunedaq
 	      entry["measurement"] = pstruct.key();
 	      entry["fields"] = pstruct.value().at(JSONTags::data);
 	      std::time_t seconds = pstruct.value().at(JSONTags::time).get<std::time_t>();
-	      auto local =localtime(& seconds);
+	      auto gmt =gmtime(& seconds);
 	      char time_c_string[80];
-	      strftime( time_c_string, 80, "%Y-%m-%dT%H:%M:%SZ", local );
+	      strftime( time_c_string, 80, "%Y-%m-%dT%H:%M:%SZ", gmt );
 	      std::string time_string(time_c_string);
 	      entry["time"] = time_string;
 	      m_components.push_back(entry);
