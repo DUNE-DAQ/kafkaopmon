@@ -1,5 +1,10 @@
-// * This is part of the DUNE DAQ Application Framework, copyright 2020.
-// * Licensing/copyright details are in the COPYING file that you should have received with this code.
+/**
+ * @file JsonFlattener.cpp JsonFlattener class implementation
+ *
+ * This is part of the DUNE DAQ Software Suite, copyright 2020.
+ * Licensing/copyright details are in the COPYING file that you should have
+ * received with this code.
+ */
 #include <ctime>
 
 #include "JsonFlattener.hpp"
@@ -9,12 +14,13 @@
 namespace dunedaq
 {
 
+  
   using opmonlib::JSONTags;
 
-  namespace kafkaopmon
-    {
+  namespace kafkaopmon     {
+    
       JsonFlattener::JsonFlattener(const nlohmann::json& j) {
-	if ( j.size() != 2 or j.count(JSONTags::parent) != 1 or j.count(JSONTags::tags) != 1 ) {
+	if ( j.size() != 2 || j.count(JSONTags::parent) != 1 || j.count(JSONTags::tags) != 1 ) {
 	  throw OpmonJSONValidationError(ERS_HERE, "Root key '"+std::string(JSONTags::parent)+"' not found" );
 	}
 	
@@ -29,16 +35,16 @@ namespace dunedaq
 	
 	parse_json("", j[JSONTags::parent]);
       }
-
-      void JsonFlattener::parse_json( std::string path,
-				 const nlohmann::json& j) {
-	
-	for (auto& [key, obj] : j.items()) {
+    
+    void JsonFlattener::parse_json( std::string path,
+				    const nlohmann::json& j) {
+      
+      for (auto& [key, obj] : j.items()) {
 
 	  auto objpath = (path.size() ? path+m_separator+key : key);
 
 	  // validate meta filelds, i.e.
-	  if (not obj.is_object())
+	  if (! obj.is_object())
 	    throw OpmonJSONValidationError(ERS_HERE, key + " is not an object");
 
 	  // if properties are here, process them
@@ -47,11 +53,11 @@ namespace dunedaq
 	    for (auto& pstruct : obj[JSONTags::properties].items()) {
 	      
 	      // Make sure that this is a json object
-	      if (not pstruct.value().is_object())
+	      if (! pstruct.value().is_object())
 		throw OpmonJSONValidationError(ERS_HERE, pstruct.key() + " is not an object");
 	      
 	      // And that it contains the required fields
-	      if (pstruct.value().count(JSONTags::time) == 0 or pstruct.value().count(JSONTags::data) == 0)
+	      if (pstruct.value().count(JSONTags::time) == 0 || pstruct.value().count(JSONTags::data) == 0)
 		throw OpmonJSONValidationError(ERS_HERE, pstruct.key() + " has no " +
 					       JSONTags::time + " or " +
 					       JSONTags::data + " tag");
@@ -72,11 +78,11 @@ namespace dunedaq
 	      temp_tags["source_id"] = objpath;
 	      entry["measurement"] = pstruct.key();
 	      entry["fields"] = pstruct.value().at(JSONTags::data);
-	      std::time_t seconds = pstruct.value().at(JSONTags::time).get<std::time_t>();
+	      auto seconds = pstruct.value().at(JSONTags::time).get<std::time_t>();
 	      auto gmt =gmtime(& seconds);
-	      char time_c_string[80];
-	      strftime( time_c_string, 80, "%Y-%m-%dT%H:%M:%SZ", gmt );
-	      std::string time_string(time_c_string);
+	      std::array<char,80> time_c_string;
+	      strftime( time_c_string.data(), 80, "%Y-%m-%dT%H:%M:%SZ", gmt );
+	      std::string time_string(time_c_string.data());
 	      entry["time"] = time_string;
 	      m_components.push_back(entry);
 	    }
