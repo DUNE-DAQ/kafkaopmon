@@ -42,12 +42,16 @@ def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consum
 
 def print_string(consumer):
     for message in consumer:
-        print(message.value)
+        print("Key:", message.key)
+        print("Timestamp:", message.timestamp)
+        print("Message:", message.value)
 
 def print_json(consumer):
     for message in consumer:
         js = json.loads(message.value)
-        print(js)
+        print("Key:", message.key)
+        print("Timestamp:", message.timestamp)
+        print("Json:", js)
 
             
 if __name__ == '__main__':
