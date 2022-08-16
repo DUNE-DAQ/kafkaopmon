@@ -30,6 +30,11 @@ target_include_directories(kafkaopmon_kafkaOpmonService_duneOpmonService PUBLIC)
 ##daq_add_application(kafka_opmon_consumer kafka_opmon_consumer.cxx LINK_LIBRARIES opmonlib::opmonlib RdKafka::rdkafka++ CURL::libcurl ers::ers ${CPR_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY})
 
 
+##############################################################################
+# Python bindings
+
+daq_add_python_bindings(*.cpp LINK_LIBRARIES ${PROJECT_NAME})
+
 
 ##############################################################################
 # No integration tests written
