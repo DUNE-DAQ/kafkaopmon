@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 #
 # @file kafka-spy.py connecting to kakfa to print the message content.
 # This is part of the DUNE DAQ software, copyright 2020.
