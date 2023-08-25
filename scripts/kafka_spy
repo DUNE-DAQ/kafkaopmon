@@ -21,9 +21,11 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--kafka-consumer-id', type=click.STRING, default='microservice', help='id of the kafka consumer, not really important')
 @click.option('--kafka-consumer-group', type=click.STRING, default='kakfa-spy', help='group ID of the kafka consumer, very important to be unique or information will not be duplicated')
 @click.option('--parse-as-json', type=click.BOOL, default=True, help='Tries to parse the messaage as a json')
+@click.option('--only-partition-check', type=click.BOOL, default=False, help='Just returns the partition structure of the selected topics, then it dies')
 
 
-def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consumer_group, parse_as_json):
+
+def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consumer_group, parse_as_json, only_partition_check):
 
     bootstrap = f"{kafka_address}:{kafka_port}"
     print("From Kafka server:",bootstrap)
@@ -35,12 +37,20 @@ def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consum
     print("Consuming topics:", kafka_topics)
     consumer.subscribe(kafka_topics)
 
+    for topic in kafka_topics :
+        partitions = consumer.partitions_for_topic(topic)
+        print( "Topic:", topic, "with", len(partitions), "partitions.")
+        for p in partitions :
+            print(p)
+
+    if (only_partition_check):
+        quit()
+        
     if parse_as_json :
         print_json(consumer=consumer)
     else:
         print_string(consumer=consumer)
        
-
 
 def print_string(consumer):
     for message in consumer:
