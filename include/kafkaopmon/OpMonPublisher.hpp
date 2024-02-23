@@ -14,31 +14,74 @@
 
 #include <librdkafka/rdkafkacpp.h>
 #include <nlohmann/json.hpp>
+#include <ers/ers.hpp>
 
 #include <string>
 #include <memory>
 
-#include "opmonlib/info/test.pb.h"
+#include "opmonlib/opmon_entry.pb.h"
+
+namespace dunedaq {
+
+  ERS_DECLARE_ISSUE( kafkaopmon,
+		     MissingParameter,
+		     "No " << parameter << " in " << conf,
+		     ((std::string)parameter)((std::string)conf)
+		   )
+
+  ERS_DECLARE_ISSUE( kafkaopmon,
+		     FailedConfiguration,
+		     "Invalid " << parameter << ", cause: " << reason,
+		     ((std::string)parameter)((std::string)reason)
+		   )
+
+  ERS_DECLARE_ISSUE( kafkaopmon,
+		     FailedProducerCreation,
+		     "Failed creation of a Kafka producer, cause: " << reason,
+		     ((std::string)reason)
+		   )
+
+  ERS_DECLARE_ISSUE( kafkaopmon,
+		     FailedProduce,
+		     "Failed produce of message with key " << key << ", cause: " << reason,
+		     ((std::string)key)((std::string)reason)
+		   )
+  
+  ERS_DECLARE_ISSUE( kafkaopmon,
+                     TimeoutReachedWhileFlushing,
+		     "Publisher destroyed before all messages were completed, timeout: " << timeout << " ms",
+		     ((int)timeout)
+                   )
+
+  
+} // dunedaq namespace
+
+
+
 
 namespace dunedaq::kafkaopmon {
 
-  class OpMonPublihser {
+  class OpMonPublisher {
 
-    OpMonPublihser( const nlohmann::json& conf );
+    OpMonPublisher( const nlohmann::json& conf );
 
-    OpMonPublihser() = delete;
-    OpMonPublihser( const OpMonPublihser & ) = delete;
-    OpMonPublihser & operator = ( const OpMonPublihser & ) = delete;
-    OpMonPublihser( OpMonPublihser && ) = delete;
-    OpMonPublihser & operator = ( OpMonPublihser && ) = delete;
+    OpMonPublisher() = delete;
+    OpMonPublisher( const OpMonPublisher & ) = delete;
+    OpMonPublisher & operator = ( const OpMonPublisher & ) = delete;
+    OpMonPublisher( OpMonPublisher && ) = delete;
+    OpMonPublisher & operator = ( OpMonPublisher && ) = delete;
 
-    ~OpMonPublihser() {;}
+    ~OpMonPublisher();
 
-    bool publish( dunedaq::opmon::OpMonEntry && );
+    bool publish( dunedaq::opmon::OpMonEntry && ) noexcept ;
 
   protected:
-    std::string topic( const dunedaq::opmon::OpMonEntry & ) const;
-    std::string key( const dunedaq::opmon::OpMonEntry & ) const;
+    std::string extract_topic( const dunedaq::opmon::OpMonEntry & e) const noexcept {
+      return e.opmon_id() + '/' + e.measurement() ;
+    }
+    std::string extract_key( const dunedaq::opmon::OpMonEntry & ) const noexcept {
+      return m_default_topic;
+    }
 
   private:
     std::unique_ptr<RdKafka::Producer> m_producer;
@@ -46,6 +89,6 @@ namespace dunedaq::kafkaopmon {
     
   };
   
-}
+} // namespace dunedaq::kafkaopmon
 
 #endif  //KAFKAOPMON_INCLUDE_KAFKAOPMON_OPMONPUBLISHER_HPP_

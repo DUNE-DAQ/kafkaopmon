@@ -16,55 +16,100 @@ OpMonPublisher::OpMonPublisher( const nlohmann::json& conf) {
   RdKafka::Conf * k_conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
   std::string errstr;
 
-  // Good observations here https://www.confluent.io/blog/modern-cpp-kafka-api-for-safe-easy-messaging/
+  // Good observations on threadsafety here
+  // https://www.confluent.io/blog/modern-cpp-kafka-api-for-safe-easy-messaging/
   
-  // auto it = conf.find("bootstrap");
-  // if ( it == conf.end() ) {
-  //   std::cerr << "Missing bootstrap from json file";
-  //   throw std::runtime_error( "Missing bootstrap from json file" );
-  // }
+  auto it = conf.find("bootstrap");
+  if ( it == conf.end() ) {
+    throw MissingParameter(ERS_HERE,
+			   "bootstrap",
+			   nlohmann::to_string(conf) );
+  }
   
-  // k_conf->set("bootstrap.servers", *it, errstr);
-  // if(errstr != ""){
-  //   throw std::runtime_error( errstr );
-  // }
+  k_conf->set("bootstrap.servers", *it, errstr);
+  if( ! errstr.empty() ) {
+    throw FailedConfiguration(ERS_HERE,
+			      "bootstrap.servers",
+			      errstr);
+  }
   
-  // std::string client_id;
-  // it = conf.find( "cliend_id" );
-  // if ( it != conf.end() )
-  //   client_id = *it;
-  // else if(const char* env_p = std::getenv("DUNEDAQ_APPLICATION_NAME")) 
-  //   client_id = env_p;
-  // else
-  //   client_id = "erskafkaproducerdefault";
+  std::string client_id;
+  it = conf.find( "cliend_id" );
+  if ( it != conf.end() )
+    client_id = *it;
+  else
+    client_id = "kafkaopmon_default_producer";
   
-  // k_conf->set("client.id", client_id, errstr);    
-  // if(errstr != ""){
-  //   throw std::runtime_error( errstr );
-  // }
+  k_conf->set("client.id", client_id, errstr);    
+  if ( ! errstr.empty() ) {
+    ers::error( FailedConfiguration(ERS_HERE, "client.id", errstr ) );
+  }
   
-  // //Create producer instance
-  // m_producer.reset(RdKafka::Producer::create(k_conf, errstr));
+  // Create producer instance
+  m_producer.reset(RdKafka::Producer::create(k_conf, errstr));
   
-  // if(errstr != ""){
-  //   throw std::runtime_error( errstr );
-  // }
+  if( ! m_producer ){
+    throw FailedProducerCreation(ERS_HERE, errstr);
+  }
+    
+  it = conf.find("default_topic");
+  if (it != conf.end()) m_default_topic = *it;
   
-  // it = conf.find("default_topic");
-  // if (it != conf.end()) m_default_topic = *it;
-
 }
 
 
-bool OpMonPublisher::publish( dunedaq::opmon::OpMonEntry && entry ) {
+OpMonPublisher::~OpMonPublisher() {
+
+  int timeout_ms = 500;
+  RdKafka::ErrorCode err = m_producer -> flush( timeout_ms );
+
+  if ( err == RdKafka::ERR__TIMED_OUT ) {
+    ers::warning( TimeoutReachedWhileFlushing( ERS_HERE, timeout_ms ) );
+  }
+  
+}
+
+
+bool OpMonPublisher::publish( dunedaq::opmon::OpMonEntry && entry ) noexcept {
 
   std::string binary;
   entry.SerializeToString( & binary );
 
   auto topic = extract_topic( entry );
-  auto key   = extractkey( entry );
+  auto key   = extract_key( entry );
 
-  
+  RdKafka::ErrorCode err = m_producer -> produce( topic,
+						  RdKafka::Topic::PARTITION_UA,
+						  RdKafka::Producer::RK_MSG_COPY,
+						  const_cast<char *>(binary.c_str()), binary.size(),
+						  key.c_str(), key.size(),
+						  0,
+						  nullptr
+						  );
 
+  if ( err == RdKafka::ERR_NO_ERROR ) return true;
+
+  std::string err_cause;
   
+  switch( err ) {
+  case RdKafka::ERR__QUEUE_FULL :
+    err_cause = "maximum number of outstanding messages reached";
+    break;
+  case RdKafka::ERR_MSG_SIZE_TOO_LARGE :
+    err_cause = "message too large";
+    break;
+  case RdKafka::ERR__UNKNOWN_PARTITION :
+    err_cause = "Unknown partition";
+    break;
+  case RdKafka::ERR__UNKNOWN_TOPIC :
+    err_cause = "Unknown topic";
+    break;
+  default:
+    err_cause = "unknown";
+    break;
+  }
+
+  ers::error( FailedProduce(ERS_HERE, key, err_cause));
+
+  return false;
 }

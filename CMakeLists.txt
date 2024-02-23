@@ -14,7 +14,7 @@ find_package(Boost COMPONENTS program_options REQUIRED)
 
 
 
-daq_add_library(*.cpp LINK_LIBRARIES opmonlib::opmonlib)
+daq_add_library(*.cpp LINK_LIBRARIES opmonlib::opmonlib RdKafka::rdkafka RdKafka::rdkafka++)
 
 
 ##############################################################################
