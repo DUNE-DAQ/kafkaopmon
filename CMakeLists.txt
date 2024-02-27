@@ -14,7 +14,7 @@ find_package(Boost COMPONENTS program_options REQUIRED)
 
 
 
-daq_add_library(*.cpp LINK_LIBRARIES opmonlib::opmonlib RdKafka::rdkafka RdKafka::rdkafka++)
+daq_add_library(*.cpp LINK_LIBRARIES ${Boost_LIBRARIES} opmonlib::opmonlib RdKafka::rdkafka RdKafka::rdkafka++)
 
 
 ##############################################################################
@@ -41,6 +41,7 @@ target_include_directories(kafkaopmon_kafkaOpmonService_duneOpmonService PUBLIC)
 # test application
 
 daq_add_application( test_flattener test_flattener.cxx TEST LINK_LIBRARIES kafkaopmon)
+daq_add_application( opmon_publisher_test opmon_publisher_test.cxx TEST LINK_LIBRARIES kafkaopmon )
 
 daq_install()
 

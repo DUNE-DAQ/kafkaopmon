@@ -102,7 +102,9 @@ bool OpMonPublisher::publish( dunedaq::opmon::OpMonEntry && entry ) noexcept {
     err_cause = "Unknown partition";
     break;
   case RdKafka::ERR__UNKNOWN_TOPIC :
-    err_cause = "Unknown topic";
+    err_cause = "Unknown topic (" ;
+    err_cause += topic;
+    err_cause += ')';
     break;
   default:
     err_cause = "unknown";

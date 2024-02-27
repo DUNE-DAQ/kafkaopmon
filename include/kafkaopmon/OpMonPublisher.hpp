@@ -63,8 +63,9 @@ namespace dunedaq::kafkaopmon {
 
   class OpMonPublisher {
 
+  public:
     OpMonPublisher( const nlohmann::json& conf );
-
+    
     OpMonPublisher() = delete;
     OpMonPublisher( const OpMonPublisher & ) = delete;
     OpMonPublisher & operator = ( const OpMonPublisher & ) = delete;
@@ -76,11 +77,11 @@ namespace dunedaq::kafkaopmon {
     bool publish( dunedaq::opmon::OpMonEntry && ) noexcept ;
 
   protected:
-    std::string extract_topic( const dunedaq::opmon::OpMonEntry & e) const noexcept {
-      return e.opmon_id() + '/' + e.measurement() ;
+    std::string extract_topic( const dunedaq::opmon::OpMonEntry & ) const noexcept {
+      return m_default_topic; 
     }
-    std::string extract_key( const dunedaq::opmon::OpMonEntry & ) const noexcept {
-      return m_default_topic;
+    std::string extract_key( const dunedaq::opmon::OpMonEntry & e) const noexcept {
+      return e.opmon_id() + '/' + e.measurement() ;
     }
 
   private:
