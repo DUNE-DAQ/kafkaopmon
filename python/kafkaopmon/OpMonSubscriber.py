@@ -13,23 +13,24 @@ import opmonlib.opmon_entry_pb2 as entry
 import google.protobuf.message as msg
 
 class OpMonFunction :
-    def __init(self,
-               function,
-               opmon_id : re.Pattern,
-               measurement : re.Patern) :
+    def __init__(self,
+                 function,
+                 opmon_id : re.Pattern,
+                 measurement : re.Pattern) :
         self.function = function
         self.opmon_id = opmon_id
         self.measurement = measurement
 
-    def match(key : str) -> bool :
-        temp_opmon_id,temp_measurement = key.split('/',1);
-        if not self.opmon_id.match(temp_opmon_id) return False
-        if not self.measurement.match(temp_measurment) return False
+    def match(self, key : str) -> bool :
+        opmon_id,measure = key.split('/',1);
+        if not self.opmon_id.match(opmon_id) : return False
+        if not self.measurement.match(measure) : return False
         return True
 
-    def execute( e : entry.OpMonEntry ) :
+    def execute(self, e : entry.OpMonEntry ) :
         self.function(e)
 
+        
 class  OpMonSubscriber:
     def __init__(self, bootstrap, group_id=None, timeout_ms=500, topics=["opmon_stream"]) :
         ## Options from configurations
@@ -52,14 +53,16 @@ class  OpMonSubscriber:
         return id
 
     def add_callback(self,
-                     name, function, opmon_id = '.*', measurement = '.*') -> bool:
+                     name, function,
+                     opmon_id = '.*',
+                     measurement = '.*') -> bool:
         if ( name in self.functions ) : return False
        
         was_running = self.running
         if (was_running) : self.stop()
 
         f = OpMonFunction( function = function,
-                           opmon_id = re.compile(opmon_id)
+                           opmon_id = re.compile(opmon_id),
                            measurement = re.compile(measurement) )
         
         self.functions[name] = f
@@ -93,8 +96,8 @@ class  OpMonSubscriber:
         self.thread.join()
 
     def message_loop(self) :
-        if not self.group : group_id = self.default_id()
-        else: group_id = self.group
+        if not self.group_id : group_id = self.default_id()
+        else: group_id = self.group_id
 
         consumer = KafkaConsumer(bootstrap_servers=self.bootstrap,
                                  group_id=group_id, 
@@ -104,7 +107,8 @@ class  OpMonSubscriber:
         topics = self.topics
         consumer.subscribe(["monitoring." + s for s in topics])
 
-        logging.info("ID:", group_id, "running with functions:", *self.functions.keys())
+        logging.info(f"ID: %s running with functions {('%s, ' * len(self.functions.keys()))[:-2]}",
+                     group_id, *self.functions.keys())
 
         while ( self.running ) :
             try:
@@ -114,7 +118,7 @@ class  OpMonSubscriber:
                 key = message.key.decode('ascii')
                 ## The key from the message is binary
                 ## In order to correctly match an ascii regex, we have to convert
-                
+
                 for function in self.functions.values() :
                     if function.match(key) :
                         e = entry.OpMonEntry()

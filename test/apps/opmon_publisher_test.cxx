@@ -43,17 +43,19 @@ main(int argc, char const* argv[])
   }
 
   OpMonPublisher p(conf);
-
-  
   
   for( auto i = 0 ; i < 50; ++i ) {
     dunedaq::opmon::TestInfo ti;
     ti.set_int_example( 10*i );
     ti.set_string_example( "test" );
-    p.publish( to_entry( ti ) );
+    auto e = to_entry( ti );
+    e.set_opmon_id("test.app");
+    p.publish( std::move(e) );
 
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
+
+  std::this_thread::sleep_for(std::chrono::seconds(2));
   
   return 0;
 }

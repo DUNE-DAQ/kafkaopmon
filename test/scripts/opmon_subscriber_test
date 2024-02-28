@@ -26,7 +26,8 @@ def cli(kafka_address, kafka_port, topic, running_seconds) :
     bootstrap = f"{kafka_address}:{kafka_port}"
 
     sub = opmon_sub.OpMonSubscriber( bootstrap=bootstrap,
-                                     topics=topic )
+                                     topics=topic,
+                                     group_id = "subscriber_tester")
 
     sub.add_callback(name="acceptable",
                      function=acceptable_function )
@@ -40,7 +41,7 @@ def cli(kafka_address, kafka_port, topic, running_seconds) :
 
 
 def acceptable_function( entry : opmon_schema.OpMonEntry ) :
-    logging.info(pb_json.MessageToJson(entry)
+    logging.info(pb_json.MessageToJson(entry))
 
 
 def rejected_function(  entry : opmon_schema.OpMonEntry ) :
