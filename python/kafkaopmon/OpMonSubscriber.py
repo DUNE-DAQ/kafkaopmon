@@ -7,6 +7,7 @@ import os
 import re
 import logging
 import getpass
+import sys
 
 import opmonlib.opmon_entry_pb2 as entry
 import google.protobuf.message as msg
@@ -30,11 +31,12 @@ class OpMonFunction :
         self.function(e)
 
 class  OpMonSubscriber:
-    def __init__(self, bootstrap, group_id=None, timeout_ms=500, topics=[]) :
+    def __init__(self, bootstrap, group_id=None, timeout_ms=500, topics=["opmon_stream"]) :
         ## Options from configurations
         self.bootstrap = bootstrap
         self.group_id  = group_id
         self.timeout   = timeout_ms
+        if len(topics) == 0 : raise ValueError("topic list is empty")
         self.topics    = topics
         ## runtime options
         self.running = False
@@ -100,7 +102,6 @@ class  OpMonSubscriber:
                                  consumer_timeout_ms=self.timeout)
         
         topics = self.topics
-        if len(topics) == 0 : topics = ["ers_stream"]
         consumer.subscribe(["monitoring." + s for s in topics])
 
         logging.info("ID:", group_id, "running with functions:", *self.functions.keys())
