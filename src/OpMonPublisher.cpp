@@ -44,10 +44,10 @@ OpMonPublisher::OpMonPublisher( const nlohmann::json& conf) {
   if ( ! errstr.empty() ) {
     ers::error( FailedConfiguration(ERS_HERE, "client.id", errstr ) );
   }
-  
+
   // Create producer instance
   m_producer.reset(RdKafka::Producer::create(k_conf, errstr));
-  
+    
   if( ! m_producer ){
     throw FailedProducerCreation(ERS_HERE, errstr);
   }
