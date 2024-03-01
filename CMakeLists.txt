@@ -10,7 +10,7 @@ find_package(CPR REQUIRED)
 find_package(CURL REQUIRED)
 find_package(RdKafka REQUIRED)
 find_package(ers REQUIRED)     
-find_package(Boost COMPONENTS program_options REQUIRED)
+find_package(Boost COMPONENTS unit_test_framework program_options REQUIRED)
 
 
 
@@ -35,7 +35,8 @@ target_include_directories(kafkaopmon_kafkaOpmonService_duneOpmonService PUBLIC)
 # No integration tests written
 
 ##############################################################################
-# No unit tests written
+# unit tests
+daq_add_unit_test( OpMonPublisher_test      LINK_LIBRARIES kafkaopmon )
 
 ##############################################################################
 # test application

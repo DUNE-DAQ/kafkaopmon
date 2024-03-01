@@ -74,7 +74,7 @@ namespace dunedaq::kafkaopmon {
 
     ~OpMonPublisher();
 
-    bool publish( dunedaq::opmon::OpMonEntry && ) noexcept ;
+    void publish( dunedaq::opmon::OpMonEntry && ) const ;
 
   protected:
     std::string extract_topic( const dunedaq::opmon::OpMonEntry & ) const noexcept {

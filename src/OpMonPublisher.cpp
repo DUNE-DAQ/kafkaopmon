@@ -70,7 +70,7 @@ OpMonPublisher::~OpMonPublisher() {
 }
 
 
-bool OpMonPublisher::publish( dunedaq::opmon::OpMonEntry && entry ) noexcept {
+void OpMonPublisher::publish( dunedaq::opmon::OpMonEntry && entry ) const {
 
   std::string binary;
   entry.SerializeToString( & binary );
@@ -87,7 +87,7 @@ bool OpMonPublisher::publish( dunedaq::opmon::OpMonEntry && entry ) noexcept {
 						  nullptr
 						  );
 
-  if ( err == RdKafka::ERR_NO_ERROR ) return true;
+  if ( err == RdKafka::ERR_NO_ERROR ) return ;
 
   std::string err_cause;
   
@@ -111,7 +111,6 @@ bool OpMonPublisher::publish( dunedaq::opmon::OpMonEntry && entry ) noexcept {
     break;
   }
 
-  ers::error( FailedProduce(ERS_HERE, key, err_cause));
+  throw FailedProduce(ERS_HERE, key, err_cause) ;
 
-  return false;
 }
