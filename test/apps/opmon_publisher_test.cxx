@@ -52,13 +52,16 @@ main(int argc, char const* argv[])
   OpMonPublisher p(conf);
 
   auto pub_func = [&](int i){
-    auto opmon_id = "test.app.thread_" + std::to_string(i);
+    dunedaq::opmon::OpMonId id;
+    id.set_session("test");
+    id.set_application("app");
+    id.set_element("thread_" + std::to_string(i));
     for (auto j = 0; j < 20; ++j ) {
       dunedaq::opmon::TestInfo ti;
       ti.set_int_example( j*1000 + i );
       ti.set_string_example( "test" );
       auto e = to_entry( ti );
-      e.set_opmon_id(opmon_id);
+      *e.mutable_origin() = id;
       p.publish( std::move(e) );
     }
   };
@@ -66,7 +69,7 @@ main(int argc, char const* argv[])
   auto n = input_map["n_threads"].as<unsigned int>() ;
   std::vector<std::future<void>> threads(n);
   
-  for( auto i = 0 ; i < n; ++i ) {
+  for( size_t i = 0 ; i < n; ++i ) {
     threads[i] = async(std::launch::async, pub_func, i);
   }
 

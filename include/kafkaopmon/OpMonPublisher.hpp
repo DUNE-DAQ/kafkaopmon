@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "opmonlib/opmon_entry.pb.h"
+#include "opmonlib/Utils.hpp"
 
 namespace dunedaq {
 
@@ -81,7 +82,7 @@ namespace dunedaq::kafkaopmon {
       return m_default_topic; 
     }
     std::string extract_key( const dunedaq::opmon::OpMonEntry & e) const noexcept {
-      return e.opmon_id() + '/' + e.measurement() ;
+      return dunedaq::opmonlib::to_string(e.origin()) + '/' + e.measurement() ;
     }
 
   private:
