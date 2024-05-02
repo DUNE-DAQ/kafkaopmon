@@ -21,6 +21,7 @@ daq_add_library(*.cpp LINK_LIBRARIES ${Boost_LIBRARIES} opmonlib::opmonlib RdKaf
 # Plugins
 
 daq_add_plugin(kafkaOpmonService duneOpmonService LINK_LIBRARIES opmonlib::opmonlib RdKafka::rdkafka RdKafka::rdkafka++ ers::ers kafkaopmon)
+daq_add_plugin(streamOpMonFacility duneOpMonFacility LINK_LIBRARIES kafkaopmon)
 target_include_directories(kafkaopmon_kafkaOpmonService_duneOpmonService PUBLIC)
 
 ## The following application is deprecated
