@@ -60,7 +60,7 @@ main(int argc, char const* argv[])
       dunedaq::opmon::TestInfo ti;
       ti.set_int_example( j*1000 + i );
       ti.set_string_example( "test" );
-      auto e = to_entry( ti );
+      auto e = to_entry( ti, {} );
       *e.mutable_origin() = id;
       p.publish( std::move(e) );
     }
