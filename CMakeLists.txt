@@ -37,7 +37,8 @@ target_include_directories(kafkaopmon_kafkaOpmonService_duneOpmonService PUBLIC)
 
 ##############################################################################
 # unit tests
-daq_add_unit_test( OpMonPublisher_test      LINK_LIBRARIES kafkaopmon )
+daq_add_unit_test( OpMonPublisher_test       LINK_LIBRARIES kafkaopmon )
+daq_add_unit_test( stream_OpMonFacility_test LINK_LIBRARIES kafkaopmon )
 
 ##############################################################################
 # test application

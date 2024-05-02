@@ -6,32 +6,14 @@
  * received with this code.
  */
 
-#include "opmonlib/OpMonFacility.hpp"
-#include "kafkaopmon/OpMonPublisher.hpp"
-
-#include <memory>
-#include <nlohmann/json.hpp>
-#include <regex>
-#include <string>
+#include "streamOpMonFacility.hpp"
 
 using json = nlohmann::json;
 
-namespace dunedaq { // namespace dunedaq
-
-  ERS_DECLARE_ISSUE(kafkaopmon, WrongURI, "Incorrect URI: " << uri, ((std::string)uri))
-
-} // namespace dunedaq
-
 namespace dunedaq::kafkaopmon { // namespace dunedaq
 
-class streamOpMonFacility : public dunedaq::opmonlib::OpMonFacility
-{
-  std::unique_ptr<OpMonPublisher> m_publisher;
-
-public:
-  explicit streamOpMonFacility(std::string uri)
-    : dunedaq::opmonlib::OpMonFacility(uri)
-  {
+  streamOpMonFacility::streamOpMonFacility(std::string uri)
+    : dunedaq::opmonlib::OpMonFacility(uri) {
     
     std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+)\/([^:\/?#\s]+))");
     //* 1st Capturing Group `([a-zA-Z])`: Matches protocol
@@ -41,7 +23,7 @@ public:
 
     std::smatch uri_match;
     if (!std::regex_match(uri, uri_match, uri_re)) {
-      ers::fatal(WrongURI(ERS_HERE, uri));
+      throw WrongURI(ERS_HERE, uri);
     }
 
     json config;
@@ -62,13 +44,7 @@ public:
 
     m_publisher.reset( new OpMonPublisher(config) );
   }
-
-  void publish( opmon::OpMonEntry && e ) const override {
-    m_publisher -> publish(std::move(e));
-  }
-
-};
-
+  
 } // namespace dunedaq::kafkaopmon
 
 
