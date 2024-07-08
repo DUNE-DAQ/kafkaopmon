@@ -53,9 +53,9 @@ main(int argc, char const* argv[])
 
   auto pub_func = [&](int i){
     dunedaq::opmon::OpMonId id;
-    id.set_session("test");
-    id.set_application("app");
-    id.set_element("thread_" + std::to_string(i));
+    id += "test";
+    id += "app";
+    id += "thread_" + std::to_string(i);
     for (auto j = 0; j < 20; ++j ) {
       dunedaq::opmon::TestInfo ti;
       ti.set_int_example( j*1000 + i );
