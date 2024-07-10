@@ -53,7 +53,7 @@ OpMonPublisher::OpMonPublisher( const nlohmann::json& conf) {
   }
     
   it = conf.find("default_topic");
-  if (it != conf.end()) m_default_topic = *it;
+  if (it != conf.end()) m_default_topic = "monitoring." + it->get<std::string>();
   
 }
 

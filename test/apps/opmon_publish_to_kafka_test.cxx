@@ -1,24 +1,29 @@
 /**
- * @brief test application for the opmon publisher
+ * @brief test application for the the whole chain from MonitorableObject to kafka
  */
 
 #include <chrono>
 #include <thread>
 #include <future>        
 
-#include <kafkaopmon/OpMonPublisher.hpp>
-#include "opmonlib/Utils.hpp"
 #include "opmonlib/info/test.pb.h"
 
 #include <boost/program_options.hpp>
 
-using nlohmann::json;
+#include "opmonlib/OpMonManager.hpp"
+
 namespace po = boost::program_options;
 
-using namespace dunedaq::kafkaopmon;
 using namespace dunedaq::opmonlib;
 
 
+class TestObject : public MonitorableObject {
+
+  public:
+    using MonitorableObject::register_child;
+    using MonitorableObject::publish;
+    TestObject() : MonitorableObject() {;}
+};
 
 
 
@@ -29,7 +34,7 @@ main(int argc, char const* argv[])
   desc.add_options()
     ("help,h", "produce help message")
     ("bootstrap", po::value<std::string>()->default_value("monkafka.cern.ch:30092"), "kafka bootstrap server")
-    ("topic,t", po::value<std::string>(), "Optional specification of a topic" )
+    ("topic,t", po::value<std::string>()->default_value("opmon_stream"), "Optional specification of a topic" )
     ("n_threads,n", po::value<unsigned int>()->default_value(10), "Number of threads used for test") 
   ;
 
@@ -42,35 +47,36 @@ main(int argc, char const* argv[])
     return 0;
   }
 
-  json conf;
-  conf["bootstrap"] = input_map["bootstrap"].as<std::string>();
-  conf["cliend_id"] = "opmon_publisher_test";
-  if ( input_map.count("topic") ) {
-    conf["default_topic"] =  input_map["topic"].as<std::string>() ;
+  std::string uri = "stream://";
+  uri += input_map["bootstrap"].as<std::string>();
+  uri += '/';
+  uri += input_map["topic"].as<std::string>();
+  
+  OpMonManager man( "test",
+		    "application",
+		    uri );
+
+  const auto n = input_map["n_threads"].as<unsigned int>() ;
+  std::vector<std::shared_ptr<TestObject>> objs(n);
+  for ( size_t i = 0; i < n; ++i ) {
+    auto p = objs[i] = std::make_shared<TestObject>();
+    man.register_child( "element_" + std::to_string(i), p );
   }
 
-  OpMonPublisher p(conf);
-
-  auto pub_func = [&](int i){
-    dunedaq::opmon::OpMonId id;
-    id += "test";
-    id += "app";
-    id += "thread_" + std::to_string(i);
+  auto pub_func = [&](int i, std::shared_ptr<TestObject> p){
+    
     for (auto j = 0; j < 20; ++j ) {
       dunedaq::opmon::TestInfo ti;
       ti.set_int_example( j*1000 + i );
       ti.set_string_example( "test" );
-      auto e = to_entry( ti, {} );
-      *e.mutable_origin() = id;
-      p.publish( std::move(e) );
+      p->publish( std::move(ti) );
     }
   };
 
-  auto n = input_map["n_threads"].as<unsigned int>() ;
   std::vector<std::future<void>> threads(n);
   
   for( size_t i = 0 ; i < n; ++i ) {
-    threads[i] = async(std::launch::async, pub_func, i);
+    threads[i] = async(std::launch::async, pub_func, i, objs[i]);
   }
 
   for ( auto & t : threads ) {
