@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+
+import kafkaopmon.OpMonSubscriber as opmon_sub
+
+import google.protobuf.json_format as pb_json
+import opmonlib.opmon_entry_pb2 as opmon_schema
+import json
+import click
+import time
+import logging
+
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.option('--kafka-address', type=click.STRING, default="monkafka.cern.ch", help="address of the kafka broker")
+@click.option('--kafka-port', type=click.INT, default=30092, help='port of the kafka broker')
+@click.option('--topic', type=click.STRING, multiple=True, default=["opmon_stream"])
+@click.option('--running-seconds', type=click.INT, default=15, help='Number of seconds of the run')
+
+def cli(kafka_address, kafka_port, topic, running_seconds) :
+
+    logging.basicConfig( format='%(asctime)s %(levelname)-8s %(message)s',
+                         level=logging.DEBUG,
+                         datefmt='%Y-%m-%d %H:%M:%S')
+
+    bootstrap = f"{kafka_address}:{kafka_port}"
+
+    sub = opmon_sub.OpMonSubscriber( bootstrap=bootstrap,
+                                     topics=topic,
+                                     group_id = "subscriber_tester")
+
+    sub.add_callback(name="acceptable",
+                     function=acceptable_function )
+    sub.add_callback(name="failure",
+                     function=rejected_function,
+		     opmon_id='[0-9]+' )
+
+    sub.start()
+    time.sleep(running_seconds)
+    sub.stop()
+
+
+def acceptable_function( entry : opmon_schema.OpMonEntry ) :
+    logging.info(pb_json.MessageToJson(entry))
+
+
+def rejected_function(  entry : opmon_schema.OpMonEntry ) :
+    raise RuntimeError("This should never be callsed")
+
+
+
+if __name__ == '__main__':
+    cli(show_default=True, standalone_mode=True)
