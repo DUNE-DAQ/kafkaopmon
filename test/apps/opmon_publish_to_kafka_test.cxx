@@ -20,7 +20,7 @@ using namespace dunedaq::opmonlib;
 class TestObject : public MonitorableObject {
 
   public:
-    using MonitorableObject::register_child;
+    using MonitorableObject::register_node;
     using MonitorableObject::publish;
     TestObject() : MonitorableObject() {;}
 };
@@ -60,7 +60,7 @@ main(int argc, char const* argv[])
   std::vector<std::shared_ptr<TestObject>> objs(n);
   for ( size_t i = 0; i < n; ++i ) {
     auto p = objs[i] = std::make_shared<TestObject>();
-    man.register_child( "element_" + std::to_string(i), p );
+    man.register_node( "element_" + std::to_string(i), p );
   }
 
   auto pub_func = [&](int i, std::shared_ptr<TestObject> p){
