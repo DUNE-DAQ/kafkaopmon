@@ -6,7 +6,7 @@
 #include <thread>
 #include <future>        
 
-#include "opmonlib/info/test.pb.h"
+#include "opmonlib/opmon/test.pb.h"
 
 #include <boost/program_options.hpp>
 
