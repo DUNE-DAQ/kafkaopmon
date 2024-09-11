@@ -12,7 +12,7 @@ using json = nlohmann::json;
 
 namespace dunedaq::kafkaopmon { // namespace dunedaq
 
-  streamOpMonFacility::streamOpMonFacility(std::string uri)
+  streamOpMonFacility::streamOpMonFacility(std::string uri, dunedaq::opmonlib::OptionalOrigin o)
     : dunedaq::opmonlib::OpMonFacility(uri) {
     
     std::regex uri_re(R"(([a-zA-Z]+):\/\/([^:\/?#\s]+):(\d+)\/([^:\/?#\s]+))");
@@ -34,10 +34,8 @@ namespace dunedaq::kafkaopmon { // namespace dunedaq
 
     // optionally set the ID of the application
     // But really this is temporary, and in the future we should avoid env variables
-    if(auto env_p = std::getenv("DUNEDAQ_PARTITION")) {
-      if (auto app_p = std::getenv("DUNEDAQ_APPLICATION_NAME")) {
-	config["cliend_id"] = std::string(env_p) + '.' + std::string(app_p);
-      }
+    if ( o ) {
+      config["cliend_id"] = dunedaq::opmonlib::to_string( o.value() ) ;
     }
 
     config["default_topic"] = uri_match[4];
