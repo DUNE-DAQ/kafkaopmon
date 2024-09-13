@@ -24,7 +24,7 @@ class streamOpMonFacility : public dunedaq::opmonlib::OpMonFacility
   std::unique_ptr<OpMonPublisher> m_publisher;
 
 public:
-  explicit streamOpMonFacility(std::string uri);
+  explicit streamOpMonFacility(std::string uri, dunedaq::opmonlib::OptionalOrigin );
   void publish( opmon::OpMonEntry && e ) const override {
     m_publisher -> publish(std::move(e));
   }
