@@ -66,15 +66,11 @@ class OpMonPublisher:
     def map_message(self, message:msg):
         message_dict = {}
         for name, descriptor in message.DESCRIPTOR.fields_by_name.items():
-            print(f"map_message: {name=}")
-            print(f"map_message: {descriptor.cpp_type=}")
-            print(f"map_message: {getattr(message, name)=}")
             message_dict[name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
         return message_dict 
 
     def map_entry(self, value, field_type:int):
         formatted_OpMonValue = OpMonValue() 
-        print(f"{field_type=}")
         match field_type:
             case fd.CPPTYPE_INT32:
                 formatted_OpMonValue.int4_value = value
@@ -94,5 +90,4 @@ class OpMonPublisher:
                 formatted_OpMonValue.string_value = value
             case _:
                 raise ValueError("Value is of a non-supported type.")
-        print(f"map_entry: {formatted_OpMonValue=}")
         return formatted_OpMonValue
