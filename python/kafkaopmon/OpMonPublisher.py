@@ -3,21 +3,16 @@
 import os
 import socket
 import inspect
-import opmonlib.opmon_entry_pb2 as entry
+from opmonlib.opmon_entry_pb2 import OpMonValue, OpMonId, OpMonEntry 
 import google.protobuf.message as msg
+from google.protobuf.descriptor import FieldDescriptor as fd
+from google.protobuf.timestamp_pb2 import Timestamp
 from datetime import datetime
 from kafka import KafkaProducer
-import time
 from typing import Optional
+import logging
 
-class SeverityLevel(IntEnum):
-    DEBUG = auto()
-    INFO = auto()
-    WARNING = auto()
-    ERROR = auto()
-    FATAL = auto()
-
-class  OpMonPublisher:
+class OpMonPublisher:
     def __init__(
                     self, 
                     topic:str,
@@ -47,50 +42,57 @@ class  OpMonPublisher:
         self,
         session:str,
         application:str,
-        message:google.protobuf.message, # Is this legal?
-        custom_origin:Optional[dict[str:str]] = {},
+        message:msg,
+        custom_origin:Optional[dict[str,str]] = {"": ""},
+        substructure:Optional[str] = "",
     ):
-        """Create and issue and send to to the Kafka."""
-        opmon_id = entry.OpMonID(
+        """Create an OpMonEntry and send it to Kafka."""
+        data_dict = self.map_message(message)
+        opmon_id = OpMonId(
             session = session,
             application = application,
-            substructure = "" # For now, can be extended later
+            substructure = substructure
         )
-
-        opmon_metric = entry.OpMonEntry(
-            time = time.time_ns(),
+        t = Timestamp()
+        opmon_metric = OpMonEntry(
+            time = t.GetCurrentTime(),
             origin = opmon_id,
             custom_origin = custom_origin,
-            measurement = message.TypeName(),
-            data = map_message(message)
+            measurement = message.DESCRIPTOR.name,
+            data = data_dict,
         )
         return self.producer.send(opmon_metric)
 
-    def map_message(self, message:google.protobuf.message):
+    def map_message(self, message:msg):
         message_dict = {}
-        for name, descriptor in message.fields_by_name:# RETURNTOME - was looking at fields_by_name
-            message_dict[name] = map_entry(descriptor, message.getattr(name)) 
-        return message_dict
+        for name, descriptor in message.DESCRIPTOR.fields_by_name.items():
+            print(f"map_message: {name=}")
+            print(f"map_message: {descriptor.cpp_type=}")
+            print(f"map_message: {getattr(message, name)=}")
+            message_dict[name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
+        return message_dict 
 
-    def map_entry(self, variable_type, variable):
+    def map_entry(self, value, field_type:int):
         formatted_OpMonValue = OpMonValue() 
-        match variable_type:
-            case "TYPE_INT32":
-                formatted_OpMonValue.int4_value = variable
-            case "TYPE_INT64":
-                formatted_OpMonValue.int8_value = variable
-            case "TYPE_UINT32":
-                formatted_OpMonValue.uint4_value = variable
-            case "TYPE_UINT64":
-                formatted_OpMonValue.uint8_value = variable
-            case "TYPE_DOUBLE":
-                formatted_OpMonValue.double_value = variable
-            case "TYPE_FLOAT":
-                formatted_OpMonValue.float_value = variable
-            case "TYPE_BOOL":
-                formatted_OpMonValue.boolean_value = variable
-            case "TYPE_STRING":
-                formatted_OpMonValue.string_value = variable
+        print(f"{field_type=}")
+        match field_type:
+            case fd.CPPTYPE_INT32:
+                formatted_OpMonValue.int4_value = value
+            case fd.CPPTYPE_INT64:
+                formatted_OpMonValue.int8_value = value
+            case fd.CPPTYPE_UINT32:
+                formatted_OpMonValue.uint4_value = value
+            case fd.CPPTYPE_UINT64:
+                formatted_OpMonValue.uint8_value = value
+            case fd.CPPTYPE_DOUBLE:
+                formatted_OpMonValue.double_value = value
+            case fd.CPPTYPE_FLOAT:
+                formatted_OpMonValue.float_value = value
+            case fd.CPPTYPE_BOOL:
+                formatted_OpMonValue.boolean_value = value
+            case fd.CPPTYPE_STRING:
+                formatted_OpMonValue.string_value = value
             case _:
-                raise ValueError("Variable is of a non-supported type.")
+                raise ValueError("Value is of a non-supported type.")
+        print(f"map_entry: {formatted_OpMonValue=}")
         return formatted_OpMonValue
