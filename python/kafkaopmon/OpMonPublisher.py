@@ -15,7 +15,7 @@ import logging
 class OpMonPublisher:
     def __init__(
                     self, 
-                    topic:str,
+                    default_topic:str,
                     bootstrap:str = "monkafka.cern.ch:30092", # Removed for if we don't want to use OpMon (i.e. for ssh-standalone)
                     application_name:str = "python",
                     package_name:str = "unknown"
@@ -24,9 +24,9 @@ class OpMonPublisher:
         self.application_name = application_name
         self.package_name = package_name
         self.bootstrap = bootstrap
-        if not topic.startswith('monitoring.'):
-            topic = 'monitoring.' + topic
-        self.topic = topic
+        if not default_topic.startswith('monitoring.'):
+            default_topic = 'monitoring.' + default_topic
+        self.default_topic = default_topic
 
         ## runtime options
         self.log = logging.getLogger("OpMonPublisher")
@@ -47,26 +47,53 @@ class OpMonPublisher:
         substructure:Optional[str] = "",
     ):
         """Create an OpMonEntry and send it to Kafka."""
+        t = Timestamp()
+        time = t.GetCurrentTime()
+
         data_dict = self.map_message(message)
         opmon_id = OpMonId(
             session = session,
             application = application,
             substructure = substructure
         )
-        t = Timestamp()
-        opmon_metric = OpMonEntry(
-            time = t.GetCurrentTime(),
+        opmon_entry = OpMonEntry(
+            time = time,
             origin = opmon_id,
             custom_origin = custom_origin,
             measurement = message.DESCRIPTOR.name,
             data = data_dict,
         )
-        return self.producer.send(opmon_metric)
+
+        target_topic = self.extract_topic(message)
+        target_key = self.extract_key(opmon_entry)
+
+        return self.producer.send(
+            target_topic,
+            value = opmon_entry,
+            key = target_key
+        )
+
+    def extract_topic(self, message:msg) -> str:
+        return self.default_topic
+
+    def extract_key(self, opmon_entry:OpMonEntry) -> str:
+        key = str(opmon_entry.origin.session) 
+
+        if (opmon_entry.origin.application != ""):
+            key += "." + opmon_entry.origin.application
+        for substructureID in opmon_entry.origin.substructure:
+            key += "." + substructureID
+
+        key += '/' + str(opmon_entry.measurement)
+        return key
 
     def map_message(self, message:msg):
         message_dict = {}
         for name, descriptor in message.DESCRIPTOR.fields_by_name.items():
-            message_dict[name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
+            if descriptor.cpp_type == fd.CPPTYPE_MESSAGE:
+                message_dict = message_dict | self.map_message(getattr(message, name))
+            else:
+                message_dict[name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
         return message_dict 
 
     def map_entry(self, value, field_type:int):
