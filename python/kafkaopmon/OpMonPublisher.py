@@ -1,42 +1,49 @@
 #!/usr/bin/env python3
 
-import os
-import socket
-import inspect
 from opmonlib.opmon_entry_pb2 import OpMonValue, OpMonId, OpMonEntry 
-import google.protobuf.message as msg
+from google.protobuf.message import Message as msg
 from google.protobuf.descriptor import FieldDescriptor as fd
 from google.protobuf.timestamp_pb2 import Timestamp
+from erskafka.ERSKafkaLogHandler import ERSKafkaLogHandler
+
+import os
+import logging
+
 from datetime import datetime
 from kafka import KafkaProducer
 from typing import Optional
-import logging
 
 class OpMonPublisher:
     def __init__(
                     self, 
                     default_topic:str,
                     bootstrap:str = "monkafka.cern.ch:30092", # Removed for if we don't want to use OpMon (i.e. for ssh-standalone)
-                    application_name:str = "python",
-                    package_name:str = "unknown"
+                    ers_session:str = "session_tester"
     ) -> None:
         ## Options from configurations
-        self.application_name = application_name
-        self.package_name = package_name
         self.bootstrap = bootstrap
         if not default_topic.startswith('monitoring.'):
             default_topic = 'monitoring.' + default_topic
         self.default_topic = default_topic
 
-        ## runtime options
+        self.ers_session = ers_session
         self.log = logging.getLogger("OpMonPublisher")
-        self.log.info("Starting Kafka producer")
-        self.producer = KafkaProducer(
-                                        bootstrap_servers=self.bootstrap,
-                                        value_serializer=lambda v: v.SerializeToString(),
-                                        key_serializer=lambda k: str(k).encode('utf-8')
+        self.log.setLevel(logging.DEBUG)
+        self.ersHandler = ERSKafkaLogHandler(
+            session = self.ers_session,
+            kafka_address = self.bootstrap,
+            kafka_topic = "ers_stream"
         )
-        self.log.info("Initialized Kafka producer")        
+        self.streamHandler = logging.StreamHandler()
+
+        self.log.addHandler(self.ersHandler)
+        self.log.addHandler(self.streamHandler)
+
+        self.opmon_producer = KafkaProducer(
+            bootstrap_servers = self.bootstrap,
+            value_serializer = lambda v: v.SerializeToString(),
+            key_serializer = lambda k: str(k).encode('utf-8')
+        )
 
     def publish(
         self,
@@ -49,6 +56,12 @@ class OpMonPublisher:
         """Create an OpMonEntry and send it to Kafka."""
         t = Timestamp()
         time = t.GetCurrentTime()
+
+        if not isinstance(message, msg):
+            raise ValueError("This is not an accepted publish value, it needs to be of type google.protobuf.message")
+
+        if len(message.ListFields()) == 0:
+            self.log.warning(f"OpMonEntry of type {message.__name__} has no data")
 
         data_dict = self.map_message(message)
         opmon_id = OpMonId(
@@ -64,10 +77,14 @@ class OpMonPublisher:
             data = data_dict,
         )
 
+        if len(opmon_entry.data) == 0:
+            self.log.warning(f"OpMonEntry of type {message.__name__} has no data")
+            return  
+
         target_topic = self.extract_topic(message)
         target_key = self.extract_key(opmon_entry)
 
-        return self.producer.send(
+        return self.opmon_producer.send(
             target_topic,
             value = opmon_entry,
             key = target_key
@@ -90,14 +107,13 @@ class OpMonPublisher:
     def map_message(self, message:msg):
         message_dict = {}
         for name, descriptor in message.DESCRIPTOR.fields_by_name.items():
-            if descriptor.cpp_type == fd.CPPTYPE_MESSAGE:
-                message_dict = message_dict | self.map_message(getattr(message, name))
-            else:
-                message_dict[name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
-        return message_dict 
+            if descriptor.label == fd.LABEL_REPEATED:
+                continue # We don't want to keep repeated values as this doens't work for influxdb as there is no way to store repeated values
+            message_dict = self.map_entry(name, getattr(message, name), descriptor.cpp_type, message_dict)
+        return message_dict
 
-    def map_entry(self, value, field_type:int):
-        formatted_OpMonValue = OpMonValue() 
+    def map_entry(self, attribute_name:str, value, field_type:int, message_dict:dict) -> dict:
+        formatted_OpMonValue = OpMonValue()
         match field_type:
             case fd.CPPTYPE_INT32:
                 formatted_OpMonValue.int4_value = value
@@ -115,6 +131,10 @@ class OpMonPublisher:
                 formatted_OpMonValue.boolean_value = value
             case fd.CPPTYPE_STRING:
                 formatted_OpMonValue.string_value = value
-            case _:
-                raise ValueError("Value is of a non-supported type.")
-        return formatted_OpMonValue
+            case fd.CPPTYPE_STRING:
+                formatted_OpMonValue.string_value = value
+            case fd.CPPTYPE_MESSAGE:
+                message_dict = message_dict | self.map_message(value)
+        if field_type != fd.CPPTYPE_MESSAGE:
+            message_dict[attribute_name] = formatted_OpMonValue
+        return message_dict
