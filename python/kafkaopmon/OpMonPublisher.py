@@ -26,6 +26,7 @@ class OpMonPublisher:
             default_topic = 'monitoring.' + default_topic
         self.default_topic = default_topic
 
+        # Setup the ERS configuration in case 
         self.ers_session = ers_session
         self.log = logging.getLogger("OpMonPublisher")
         self.log.setLevel(logging.DEBUG)
@@ -35,10 +36,10 @@ class OpMonPublisher:
             kafka_topic = "ers_stream"
         )
         self.streamHandler = logging.StreamHandler()
-
         self.log.addHandler(self.ersHandler)
         self.log.addHandler(self.streamHandler)
 
+        # Setup the opmon publisher
         self.opmon_producer = KafkaProducer(
             bootstrap_servers = self.bootstrap,
             value_serializer = lambda v: v.SerializeToString(),
@@ -52,16 +53,18 @@ class OpMonPublisher:
         message:msg,
         custom_origin:Optional[dict[str,str]] = {"": ""},
         substructure:Optional[str] = "",
-    ):
+    ) -> None:
         """Create an OpMonEntry and send it to Kafka."""
         t = Timestamp()
         time = t.GetCurrentTime()
 
+        # Pre-map checks
         if not isinstance(message, msg):
+            self.log.error("The passed entry is not a google.protobuf.message")
             raise ValueError("This is not an accepted publish value, it needs to be of type google.protobuf.message")
-
         if len(message.ListFields()) == 0:
             self.log.warning(f"OpMonEntry of type {message.__name__} has no data")
+            return
 
         data_dict = self.map_message(message)
         opmon_id = OpMonId(
@@ -77,30 +80,29 @@ class OpMonPublisher:
             data = data_dict,
         )
 
+        # Pre publish check - if the message has no known message types
         if len(opmon_entry.data) == 0:
             self.log.warning(f"OpMonEntry of type {message.__name__} has no data")
             return  
 
         target_topic = self.extract_topic(message)
         target_key = self.extract_key(opmon_entry)
-
-        return self.opmon_producer.send(
+        self.opmon_producer.send(
             target_topic,
             value = opmon_entry,
             key = target_key
         )
+        return
 
     def extract_topic(self, message:msg) -> str:
         return self.default_topic
 
     def extract_key(self, opmon_entry:OpMonEntry) -> str:
         key = str(opmon_entry.origin.session) 
-
         if (opmon_entry.origin.application != ""):
             key += "." + opmon_entry.origin.application
         for substructureID in opmon_entry.origin.substructure:
             key += "." + substructureID
-
         key += '/' + str(opmon_entry.measurement)
         return key
 
@@ -135,6 +137,7 @@ class OpMonPublisher:
                 formatted_OpMonValue.string_value = value
             case fd.CPPTYPE_MESSAGE:
                 message_dict = message_dict | self.map_message(value)
+        # Ignore unknown types.
         if field_type != fd.CPPTYPE_MESSAGE:
             message_dict[attribute_name] = formatted_OpMonValue
         return message_dict
