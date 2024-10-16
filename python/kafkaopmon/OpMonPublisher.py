@@ -100,17 +100,17 @@ class OpMonPublisher:
         key += '/' + str(opmon_entry.measurement)
         return key
 
-    def map_message(self, message:msg, nested_msg_prefix:str=""):
+    def map_message(self, message:msg, top_block:str=""):
         message_dict = {}
         for name, descriptor in message.DESCRIPTOR.fields_by_name.items():
             if descriptor.label == fd.LABEL_REPEATED:
                 continue # We don't want to keep repeated values as this doens't work for influxdb as there is no way to store repeated values
             elif descriptor.cpp_type == fd.CPPTYPE_MESSAGE:
                 # Prepend the name of the nested message to the attribute name
-                nested_msg_prefix += getattr(message, name).DESCRIPTOR.name + "."
-                message_dict = message_dict | self.map_message(getattr(message, name), nested_msg_prefix)
+                top_block += name + "."
+                message_dict = message_dict | self.map_message(getattr(message, name), top_block)
             else:
-                message_dict[nested_msg_prefix + name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
+                message_dict[top_block + name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
         return message_dict
 
     def map_entry(self, value, field_type:int) -> OpMonValue:
