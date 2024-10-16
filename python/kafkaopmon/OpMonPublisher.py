@@ -22,8 +22,6 @@ class OpMonPublisher:
     ) -> None:
         ## Options from configurations
         self.bootstrap = bootstrap
-        if not default_topic.startswith('monitoring.'):
-            default_topic = 'monitoring.' + default_topic
         self.default_topic = default_topic
 
         # Setup the ERS configuration in case 
