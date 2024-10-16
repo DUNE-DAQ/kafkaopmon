@@ -58,11 +58,7 @@ class OpMonPublisher:
 
         # Pre-map checks
         if not isinstance(message, msg):
-            self.log.error("The passed entry is not a google.protobuf.message")
             raise ValueError("This is not an accepted publish value, it needs to be of type google.protobuf.message")
-        if len(message.ListFields()) == 0:
-            self.log.warning(f"OpMonEntry of type {message.__name__} has no data")
-            return
 
         data_dict = self.map_message(message)
         opmon_id = OpMonId(
@@ -104,15 +100,20 @@ class OpMonPublisher:
         key += '/' + str(opmon_entry.measurement)
         return key
 
-    def map_message(self, message:msg):
+    def map_message(self, message:msg, nested_msg_prefix:str=""):
         message_dict = {}
         for name, descriptor in message.DESCRIPTOR.fields_by_name.items():
             if descriptor.label == fd.LABEL_REPEATED:
                 continue # We don't want to keep repeated values as this doens't work for influxdb as there is no way to store repeated values
-            message_dict = self.map_entry(name, getattr(message, name), descriptor.cpp_type, message_dict)
+            elif descriptor.cpp_type == fd.CPPTYPE_MESSAGE:
+                # Prepend the name of the nested message to the attribute name
+                nested_msg_prefix += getattr(message, name).DESCRIPTOR.name + "."
+                message_dict = message_dict | self.map_message(getattr(message, name), nested_msg_prefix)
+            else:
+                message_dict[nested_msg_prefix + name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
         return message_dict
 
-    def map_entry(self, attribute_name:str, value, field_type:int, message_dict:dict) -> dict:
+    def map_entry(self, value, field_type:int) -> OpMonValue:
         formatted_OpMonValue = OpMonValue()
         match field_type:
             case fd.CPPTYPE_INT32:
@@ -131,11 +132,5 @@ class OpMonPublisher:
                 formatted_OpMonValue.boolean_value = value
             case fd.CPPTYPE_STRING:
                 formatted_OpMonValue.string_value = value
-            case fd.CPPTYPE_STRING:
-                formatted_OpMonValue.string_value = value
-            case fd.CPPTYPE_MESSAGE:
-                message_dict = message_dict | self.map_message(value)
-        # Ignore unknown types.
-        if field_type != fd.CPPTYPE_MESSAGE:
-            message_dict[attribute_name] = formatted_OpMonValue
-        return message_dict
+            # Ignore unknown types.
+        return formatted_OpMonValue
