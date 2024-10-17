@@ -20,14 +20,18 @@ class OpMonPublisher:
                     bootstrap:str = "monkafka.cern.ch:30092", # Removed for if we don't want to use OpMon (i.e. for ssh-standalone)
                     ers_session:str = "session_tester"
     ) -> None:
-        ## Options from configurations
-        self.bootstrap = bootstrap
-        self.default_topic = default_topic
-
         # Setup the ERS configuration in case 
         self.ers_session = ers_session
         self.log = logging.getLogger("OpMonPublisher")
         self.log.setLevel(logging.DEBUG)
+
+        ## Options from configurations
+        self.bootstrap = bootstrap
+        if not default_topic.startswith("monitoring."):
+            self.log.warning(f"Topic {default_topic} has no 'monitoring.' prefix, adding it")
+            default_topic = "monitoring." + default_topic
+        self.default_topic = default_topic
+
         self.ersHandler = ERSKafkaLogHandler(
             session = self.ers_session,
             kafka_address = self.bootstrap,

@@ -13,7 +13,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option('--kafka-address', type=click.STRING, default="monkafka.cern.ch", help="address of the kafka broker")
 @click.option('--kafka-port', type=click.INT, default=30092, help='port of the kafka broker')
-@click.option('--topic', type=click.STRING, default="monitoring.opmon_stream.test")
+@click.option('--topic', type=click.STRING, default="opmon_stream.test")
 @click.option('-n/', '--number-messages', type=click.INT, default=10000)
 def test(kafka_address:str, kafka_port:int, topic:str, number_messages:int):
     bootstrap = kafka_address + ":" + str(kafka_port)
