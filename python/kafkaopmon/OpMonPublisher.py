@@ -27,10 +27,7 @@ class OpMonPublisher:
 
         ## Options from configurations
         self.bootstrap = bootstrap
-        if not default_topic.startswith("monitoring."):
-            self.log.warning(f"Topic {default_topic} has no 'monitoring.' prefix, adding it")
-            default_topic = "monitoring." + default_topic
-        self.default_topic = default_topic
+        self.default_topic = "monitoring." + default_topic
 
         self.ersHandler = ERSKafkaLogHandler(
             session = self.ers_session,
