@@ -22,7 +22,7 @@ class OpMonFunction :
         self.measurement = measurement
 
     def match(self, key : str) -> bool :
-        opmon_id,measure = key.split('/',1);
+        opmon_id,measure = key.split('/',1)
         if not self.opmon_id.match(opmon_id) : return False
         if not self.measurement.match(measure) : return False
         return True
@@ -30,7 +30,6 @@ class OpMonFunction :
     def execute(self, e : entry.OpMonEntry ) :
         self.function(e)
 
-        
 class  OpMonSubscriber:
     def __init__(self, bootstrap, group_id=None, timeout_ms=500, topics=["opmon_stream"]) :
         ## Options from configurations
