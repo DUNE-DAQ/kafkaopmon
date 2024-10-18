@@ -17,26 +17,32 @@ class OpMonPublisher:
     def __init__(
                     self, 
                     default_topic:str,
-                    bootstrap:str = "monkafka.cern.ch:30092", # Removed for if we don't want to use OpMon (i.e. for ssh-standalone)
-                    ers_session:str = "session_tester"
+                    bootstrap:str = "", # When no bootstrap is provided, there will be nothing published
+                    ers_session:str = "session_tester",
+                    log_level:int = logging.DEBUG
     ) -> None:
-        # Setup the ERS configuration in case 
+        # Set up text logging
         self.ers_session = ers_session
         self.log = logging.getLogger("OpMonPublisher")
-        self.log.setLevel(logging.DEBUG)
+        self.log.setLevel(log_level)
 
-        ## Options from configurations
+        # Initialize object parameters
         self.bootstrap = bootstrap
         self.default_topic = "monitoring." + default_topic
 
+        ## Options from configurations
+        if bootstrap == "":
+            self.log.warning(f"There is no boostrap provided, not initializing publisher to topic {default_topic}")
+            self.opmon_producer = None
+            return None
+
+        # Setup the ERS logging
         self.ersHandler = ERSKafkaLogHandler(
             session = self.ers_session,
             kafka_address = self.bootstrap,
             kafka_topic = "ers_stream"
         )
-        self.streamHandler = logging.StreamHandler()
         self.log.addHandler(self.ersHandler)
-        self.log.addHandler(self.streamHandler)
 
         # Setup the opmon publisher
         self.opmon_producer = KafkaProducer(
@@ -50,16 +56,27 @@ class OpMonPublisher:
         session:str,
         application:str,
         message:msg,
-        custom_origin:Optional[dict[str,str]] = {"": ""},
-        substructure:Optional[str] = "",
+        custom_origin:Optional[dict[str,str]] = {},
+        substructure:Optional[list[str]] = []
     ) -> None:
         """Create an OpMonEntry and send it to Kafka."""
+        # If there is no publisher, do not send anything
         t = Timestamp()
         time = t.GetCurrentTime()
 
         # Pre-map checks
+        if not self.opmon_producer:
+            self.log.warning(f"An improperly initialized OpMonProducer with topic {self.default_topic} has been used, nothign will be published.")
+            return
         if not isinstance(message, msg):
             raise ValueError("This is not an accepted publish value, it needs to be of type google.protobuf.message")
+
+        for key, value in custom_origin.items():
+            if type(value) != "str":
+                try:
+                    custom_origin[key] = str(value)
+                except:
+                    raise TypeError(f"custom_origin[{key}] is not a string and cannot be converted to one.")
 
         data_dict = self.map_message(message)
         opmon_id = OpMonId(
@@ -71,7 +88,7 @@ class OpMonPublisher:
             time = time,
             origin = opmon_id,
             custom_origin = custom_origin,
-            measurement = message.DESCRIPTOR.name,
+            measurement = message.DESCRIPTOR.full_name,
             data = data_dict,
         )
 
@@ -90,9 +107,15 @@ class OpMonPublisher:
         return
 
     def extract_topic(self, message:msg) -> str:
+        if not self.opmon_producer:
+            self.log.warning(f"An improperly initialized OpMonProducer with topic {self.default_topic} has been used, nothign will be published.")
+            return None
         return self.default_topic
 
     def extract_key(self, opmon_entry:OpMonEntry) -> str:
+        if not self.opmon_producer:
+            self.log.warning(f"An improperly initialized OpMonProducer with topic {self.default_topic} has been used, nothign will be published.")
+            return None
         key = str(opmon_entry.origin.session) 
         if (opmon_entry.origin.application != ""):
             key += "." + opmon_entry.origin.application

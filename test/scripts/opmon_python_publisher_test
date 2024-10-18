@@ -7,49 +7,64 @@ from opmonlib.opmon.test_pb2 import ComplexInfo
 from google.protobuf.message import Message as msg
 import time
 import click
-
+import threading
+import traceback
+import inspect
+from typing import Optional
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 @click.command(context_settings=CONTEXT_SETTINGS)
-@click.option('--kafka-address', type=click.STRING, default="monkafka.cern.ch", help="address of the kafka broker")
-@click.option('--kafka-port', type=click.INT, default=30092, help='port of the kafka broker')
-@click.option('--topic', type=click.STRING, default="opmon_stream.test")
-@click.option('-n/', '--number-messages', type=click.INT, default=10000)
-def test(kafka_address:str, kafka_port:int, topic:str, number_messages:int):
-    bootstrap = kafka_address + ":" + str(kafka_port)
-    pub = OpMonPublisher(
+@click.option('--bootstrap', type=click.STRING, default="monkafka.cern.ch:30092", help="kafka bootstrap server")
+@click.option('-t', '--topic', type=click.STRING, default="opmon_stream.test", help="Optional specification of a topic")
+@click.option('-n', '--number-threads', type=click.INT, default=10, help="Number of threads used for test")
+@click.option('-m', '--number-messages', type=click.INT, default=20, help="Number of messages sent by each thread")
+def test(bootstrap:str, topic:str, number_threads:int, number_messages:int):
+    # Set up OpMonPublisher
+    publisher = OpMonPublisher(
         default_topic = topic,
         bootstrap = bootstrap
     )
-    test_complex_info = init_nested_msg()
-    test_test_info = init_simple_msg()
-    for i in range(number_messages):
-        # Test nested messages
-        test_complex_info.sub_message.int_example = i
-        pub.publish(
-            session = "test_session",
-            application = "opmon_python_publisher_test",
-            message = test_complex_info
-        )
-        # Test non-nested messages
-        test_test_info.int_example = i
-        pub.publish(
-            session = "test_session",
-            application = "opmon_python_publisher_test",
-            message = test_test_info
-        )        
+    publisher_session = "test_session"
+    publisher_application = "app"
 
-    # Test broken case for completion
+    # Initialize threaded test
+    publishing_threads = [
+        threading.Thread(
+            target=test_publishing, 
+            args=(publisher, publisher_session, publisher_application, number_messages),
+            kwargs={
+                "substructure" : [ f"thread_{thread}" ],
+                "custom_origin" : {"thread_ID": str(thread)}
+            }
+        ) for thread in range(number_threads) ]
+
+    for publishing_thread in publishing_threads:
+        publishing_thread.start() 
+    for publishing_thread in publishing_threads:
+        publishing_thread.join()
+
+    # Test case of incorrect message format
     try:
-        pub.publish(
-            session = "test_session",
-            application = "opmon_python_publisher_test",
+        publisher.publish(
+            session = publisher_session,
+            application = publisher_application,
             message = 12345
         )
     except ValueError: # TODO - replace this with a unittest class object.
         time.sleep(1)
     else:
         raise TypeError("An unexpected type of exception has been raised, this code has a bug!")
+
+    # Test case for incomplete constructor
+    publisher_no_bootstrap = OpMonPublisher(
+        default_topic = "fail_"+topic
+    )
+    assert publisher_no_bootstrap.publish(
+        session = publisher_session,
+        application = publisher_application,
+        message = init_simple_msg()
+    ) == None
+    return
 
 def init_simple_msg() -> TestInfo:
     test_string = "kafkaopmon_python_test_string"
@@ -73,6 +88,40 @@ def init_nested_msg() -> ComplexInfo:
         r_field = test_repeated_r_field
     )
     return complex_info
+
+# def test_publishing(publishers:list[OpMonPublisher], number_messages:int, custom_origin:dict, substructure:list) -> None:
+def test_publishing(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_messages:int, custom_origin:Optional[dict] = {}, substructure:Optional[list] = []) -> None:
+    # Test variables
+    test_complex_info = init_nested_msg()
+    test_test_info = init_simple_msg()
+
+    for message_number in range(number_messages):
+        # for publisher in publishers:
+        # Test nested messages
+        test_complex_info.sub_message.int_example = message_number
+        publisher.publish(
+            session = publisher_session,
+            application = publisher_application,
+            message = test_complex_info,
+            custom_origin = custom_origin,
+            substructure = substructure
+        )
+        # Test non-nested messages
+        test_test_info.int_example = message_number
+        publisher.publish(
+            session = publisher_session,
+            application = publisher_application,
+            message = test_test_info,
+            custom_origin = custom_origin,
+            substructure = substructure
+        )        
+    return
+
+def publisher(topic:str, bootstrap:str):
+    OpMonPublisher(
+        default_topic = topic,
+        bootstrap = bootstrap
+    )
 
 if __name__ == '__main__':
     test(show_default=True, standalone_mode=True)
