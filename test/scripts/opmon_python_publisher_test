@@ -27,21 +27,22 @@ def test(bootstrap:str, topic:str, number_threads:int, number_messages:int):
     publisher_session = "test_session"
     publisher_application = "app"
 
-    # Initialize threaded test
-    publishing_threads = [
-        threading.Thread(
-            target=test_publishing, 
-            args=(publisher, publisher_session, publisher_application, number_messages),
-            kwargs={
-                "substructure" : [ f"thread_{thread}" ],
-                "custom_origin" : {"thread_ID": str(thread)}
-            }
-        ) for thread in range(number_threads) ]
-
-    for publishing_thread in publishing_threads:
-        publishing_thread.start() 
-    for publishing_thread in publishing_threads:
-        publishing_thread.join()
+    # Test: threading, custom_origin, substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, True)
+    # Test: threading, custom origin, no substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, False)
+    # Test: threading, no custom origin, substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, True)
+    # Test: threading, no custom origin, no substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, False)
+    # Test: no threading, custom_origin, substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, True)
+    # Test: no threading, custom origin, no substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, False)
+    # Test: no threading, no custom origin, substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, True)
+    # Test: no threading, no custom origin, no substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, False)
 
     # Test case of incorrect message format
     try:
@@ -66,6 +67,44 @@ def test(bootstrap:str, topic:str, number_threads:int, number_messages:int):
     ) == None
     return
 
+def test_threaded(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_threads:int, number_messages:int, test_custom_origin:bool, test_substructure:bool) -> None:
+    publishing_threads = [
+        threading.Thread(
+            target=publish, 
+            args=(
+                publisher, 
+                publisher_session, 
+                publisher_application, 
+                number_messages
+            ),
+            kwargs=construct_thread_kwargs(thread, test_substructure, test_custom_origin)
+        ) for thread in range(number_threads)
+    ]
+    for publishing_thread in publishing_threads:
+        publishing_thread.start() 
+    for publishing_thread in publishing_threads:
+        publishing_thread.join()
+    return
+
+def test_unthreaded(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_threads:int, number_messages:int, test_custom_origin:bool, test_substructure:bool) -> None:
+    unthreaded_kwargs = construct_thread_kwargs(0, test_substructure, test_custom_origin)
+    publish(publisher, publisher_session, publisher_application, number_messages, unthreaded_kwargs["custom_origin"], unthreaded_kwargs["substructure"])
+    return
+
+# Constructors and support funtions
+
+def construct_thread_kwargs(thread_ID:int, test_substructure:bool, test_custom_origin:bool) -> dict:
+    thread_kwargs = {}
+    if test_substructure:
+        thread_kwargs["substructure"] = [f"thread_{thread_ID}"]
+    else:
+        thread_kwargs["substructure"] = []
+    if test_custom_origin:
+        thread_kwargs["custom_origin"] = {"thread_ID": str(thread_ID)}
+    else:
+        thread_kwargs["custom_origin"] = {}
+    return thread_kwargs
+
 def init_simple_msg() -> TestInfo:
     test_string = "kafkaopmon_python_test_string"
     test_double = 123.456789
@@ -89,14 +128,12 @@ def init_nested_msg() -> ComplexInfo:
     )
     return complex_info
 
-# def test_publishing(publishers:list[OpMonPublisher], number_messages:int, custom_origin:dict, substructure:list) -> None:
-def test_publishing(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_messages:int, custom_origin:Optional[dict] = {}, substructure:Optional[list] = []) -> None:
+def publish(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_messages:int, custom_origin:dict, substructure:list) -> None:
     # Test variables
     test_complex_info = init_nested_msg()
     test_test_info = init_simple_msg()
 
     for message_number in range(number_messages):
-        # for publisher in publishers:
         # Test nested messages
         test_complex_info.sub_message.int_example = message_number
         publisher.publish(
@@ -116,12 +153,6 @@ def test_publishing(publisher:OpMonPublisher, publisher_session:str, publisher_a
             substructure = substructure
         )        
     return
-
-def publisher(topic:str, bootstrap:str):
-    OpMonPublisher(
-        default_topic = topic,
-        bootstrap = bootstrap
-    )
 
 if __name__ == '__main__':
     test(show_default=True, standalone_mode=True)
