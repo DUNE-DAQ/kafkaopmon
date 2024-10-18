@@ -44,7 +44,7 @@ main(int argc, char const* argv[])
 
   json conf;
   conf["bootstrap"] = input_map["bootstrap"].as<std::string>();
-  conf["cliend_id"] = "opmon_publisher_test";
+  conf["client_id"] = "opmon_publisher_test";
   if ( input_map.count("topic") ) {
     conf["default_topic"] =  input_map["topic"].as<std::string>() ;
   }

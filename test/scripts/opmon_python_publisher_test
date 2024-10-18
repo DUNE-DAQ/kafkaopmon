@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+
+from kafkaopmon.OpMonPublisher import OpMonPublisher
+from opmonlib.opmon_entry_pb2 import OpMonEntry 
+from opmonlib.opmon.test_pb2 import TestInfo
+from opmonlib.opmon.test_pb2 import ComplexInfo
+from google.protobuf.message import Message as msg
+import time
+import click
+import threading
+import traceback
+import inspect
+from typing import Optional
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+@click.command(context_settings=CONTEXT_SETTINGS)
+@click.option('--bootstrap', type=click.STRING, default="monkafka.cern.ch:30092", help="kafka bootstrap server")
+@click.option('-t', '--topic', type=click.STRING, default="opmon_stream.test", help="Optional specification of a topic")
+@click.option('-n', '--number-threads', type=click.INT, default=10, help="Number of threads used for test")
+@click.option('-m', '--number-messages', type=click.INT, default=20, help="Number of messages sent by each thread")
+def test(bootstrap:str, topic:str, number_threads:int, number_messages:int):
+    # Set up OpMonPublisher
+    publisher = OpMonPublisher(
+        default_topic = topic,
+        bootstrap = bootstrap
+    )
+    publisher_session = "test_session"
+    publisher_application = "app"
+
+    # Test: threading, custom_origin, substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, True)
+    # Test: threading, custom origin, no substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, False)
+    # Test: threading, no custom origin, substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, True)
+    # Test: threading, no custom origin, no substructure
+    test_threaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, False)
+    # Test: no threading, custom_origin, substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, True)
+    # Test: no threading, custom origin, no substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, True, False)
+    # Test: no threading, no custom origin, substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, True)
+    # Test: no threading, no custom origin, no substructure
+    test_unthreaded(publisher, publisher_session, publisher_application, number_threads, number_messages, False, False)
+
+    # Test case of incorrect message format
+    try:
+        publisher.publish(
+            session = publisher_session,
+            application = publisher_application,
+            message = 12345
+        )
+    except ValueError: # TODO - replace this with a unittest class object.
+        time.sleep(1)
+    else:
+        raise TypeError("An unexpected type of exception has been raised, this code has a bug!")
+
+    # Test case for incomplete constructor
+    publisher_no_bootstrap = OpMonPublisher(
+        default_topic = "fail_"+topic
+    )
+    assert publisher_no_bootstrap.publish(
+        session = publisher_session,
+        application = publisher_application,
+        message = init_simple_msg()
+    ) == None
+    return
+
+def test_threaded(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_threads:int, number_messages:int, test_custom_origin:bool, test_substructure:bool) -> None:
+    publishing_threads = [
+        threading.Thread(
+            target=publish, 
+            args=(
+                publisher, 
+                publisher_session, 
+                publisher_application, 
+                number_messages
+            ),
+            kwargs=construct_thread_kwargs(thread, test_substructure, test_custom_origin)
+        ) for thread in range(number_threads)
+    ]
+    for publishing_thread in publishing_threads:
+        publishing_thread.start() 
+    for publishing_thread in publishing_threads:
+        publishing_thread.join()
+    return
+
+def test_unthreaded(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_threads:int, number_messages:int, test_custom_origin:bool, test_substructure:bool) -> None:
+    unthreaded_kwargs = construct_thread_kwargs(0, test_substructure, test_custom_origin)
+    publish(publisher, publisher_session, publisher_application, number_messages, unthreaded_kwargs["custom_origin"], unthreaded_kwargs["substructure"])
+    return
+
+# Constructors and support funtions
+
+def construct_thread_kwargs(thread_ID:int, test_substructure:bool, test_custom_origin:bool) -> dict:
+    thread_kwargs = {}
+    if test_substructure:
+        thread_kwargs["substructure"] = [f"thread_{thread_ID}"]
+    else:
+        thread_kwargs["substructure"] = []
+    if test_custom_origin:
+        thread_kwargs["custom_origin"] = {"thread_ID": str(thread_ID)}
+    else:
+        thread_kwargs["custom_origin"] = {}
+    return thread_kwargs
+
+def init_simple_msg() -> TestInfo:
+    test_string = "kafkaopmon_python_test_string"
+    test_double = 123.456789
+    test_int = 0
+    test_bool = False
+    test_info = TestInfo(
+        string_example = test_string,
+        float_example = test_double,
+        int_example = test_int,
+        bool_example = test_bool
+    )
+    return test_info
+
+def init_nested_msg() -> ComplexInfo:
+    test_another_float = 9.87654321
+    test_repeated_r_field = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    complex_info = ComplexInfo(
+        another_float = test_another_float,
+        sub_message = init_simple_msg(),
+        r_field = test_repeated_r_field
+    )
+    return complex_info
+
+def publish(publisher:OpMonPublisher, publisher_session:str, publisher_application:str, number_messages:int, custom_origin:dict, substructure:list) -> None:
+    # Test variables
+    test_complex_info = init_nested_msg()
+    test_test_info = init_simple_msg()
+
+    for message_number in range(number_messages):
+        # Test nested messages
+        test_complex_info.sub_message.int_example = message_number
+        publisher.publish(
+            session = publisher_session,
+            application = publisher_application,
+            message = test_complex_info,
+            custom_origin = custom_origin,
+            substructure = substructure
+        )
+        # Test non-nested messages
+        test_test_info.int_example = message_number
+        publisher.publish(
+            session = publisher_session,
+            application = publisher_application,
+            message = test_test_info,
+            custom_origin = custom_origin,
+            substructure = substructure
+        )        
+    return
+
+if __name__ == '__main__':
+    test(show_default=True, standalone_mode=True)
