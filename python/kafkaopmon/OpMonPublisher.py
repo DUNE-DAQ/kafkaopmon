@@ -62,7 +62,7 @@ class OpMonPublisher:
         """Create an OpMonEntry and send it to Kafka."""
         # If there is no publisher, do not send anything
         t = Timestamp()
-        time = t.GetCurrentTime()
+        t.GetCurrentTime()
 
         # Pre-map checks
         if not self.opmon_producer:
@@ -85,7 +85,7 @@ class OpMonPublisher:
             substructure = substructure
         )
         opmon_entry = OpMonEntry(
-            time = time,
+            time = t,
             origin = opmon_id,
             custom_origin = custom_origin,
             measurement = message.DESCRIPTOR.full_name,
@@ -99,6 +99,7 @@ class OpMonPublisher:
 
         target_topic = self.extract_topic(message)
         target_key = self.extract_key(opmon_entry)
+
         self.opmon_producer.send(
             target_topic,
             value = opmon_entry,
