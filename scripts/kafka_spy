@@ -10,28 +10,25 @@
 from kafka import KafkaConsumer
 import json
 import click
+import subprocess
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
-
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option('--kafka-address', type=click.STRING, default="monkafka.cern.ch", help="address of the kafka broker")
-@click.option('--kafka-port', type=click.INT, default=30092, help='port of the kafka broker')       
+@click.option('--kafka-port', type=click.INT, default=30092, help='port of the kafka broker')
 @click.option('--kafka-topics', multiple=True, default=['opmon'], help='topics of the kafka broker')
 @click.option('--kafka-consumer-id', type=click.STRING, default='microservice', help='id of the kafka consumer, not really important')
 @click.option('--kafka-consumer-group', type=click.STRING, default='kakfa-spy', help='group ID of the kafka consumer, very important to be unique or information will not be duplicated')
-@click.option('--parse-as-json', type=click.BOOL, default=True, help='Tries to parse the messaage as a json')
+@click.option('--message-format', type=click.Choice(['json', 'pb', 'str']), default='string', help='Tries to parse the messaage as a [json|protobuf|string]')
 @click.option('--only-partition-check', type=click.BOOL, default=False, help='Just returns the partition structure of the selected topics, then it dies')
-
-
-
-def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consumer_group, parse_as_json, only_partition_check):
+def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consumer_group, message_format, only_partition_check):
 
     bootstrap = f"{kafka_address}:{kafka_port}"
     print("From Kafka server:",bootstrap)
-    
+
     consumer = KafkaConsumer(bootstrap_servers=bootstrap,
-                             group_id=kafka_consumer_group, 
+                             group_id=kafka_consumer_group,
                              client_id=kafka_consumer_id)
 
     print("Consuming topics:", kafka_topics)
@@ -45,12 +42,15 @@ def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consum
 
     if (only_partition_check):
         quit()
-        
-    if parse_as_json :
-        print_json(consumer=consumer)
-    else:
-        print_string(consumer=consumer)
-       
+
+    match message_format :
+        case 'json':
+            print_json(consumer=consumer)
+        case 'pb':
+            print_protobuf(consumer=consumer)
+        case _:
+            print_string(consumer=consumer)
+
 
 def print_string(consumer):
     for message in consumer:
@@ -65,6 +65,14 @@ def print_json(consumer):
         print("Timestamp:", message.timestamp)
         print("Json:", js)
 
-            
+def print_protobuf(consumer):
+    for message in consumer:
+        print("Key:", message.key)
+        print("Timestamp:", message.timestamp)
+        print("Protobuf: ")
+        s = subprocess.run(["protoc", "--decode_raw"], input=message.value, capture_output=True, text=False)
+        print(s.stdout.decode("utf-8"))
+
+
 if __name__ == '__main__':
     cli(show_default=True, standalone_mode=True)
