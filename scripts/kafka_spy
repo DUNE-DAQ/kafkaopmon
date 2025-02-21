@@ -20,7 +20,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--kafka-topics', multiple=True, default=['opmon'], help='topics of the kafka broker')
 @click.option('--kafka-consumer-id', type=click.STRING, default='microservice', help='id of the kafka consumer, not really important')
 @click.option('--kafka-consumer-group', type=click.STRING, default='kakfa-spy', help='group ID of the kafka consumer, very important to be unique or information will not be duplicated')
-@click.option('--message-format', type=click.Choice(['json', 'pb', 'str']), default='string', help='Tries to parse the messaage as a [json|protobuf|string]')
+@click.option('--message-format', type=click.Choice(['json', 'pb', 'str']), default='str', help='Tries to parse the message as a [json|pb|str]')
 @click.option('--only-partition-check', type=click.BOOL, default=False, help='Just returns the partition structure of the selected topics, then it dies')
 def cli(kafka_address, kafka_port, kafka_topics, kafka_consumer_id, kafka_consumer_group, message_format, only_partition_check):
 
