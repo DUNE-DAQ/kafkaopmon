@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from opmonlib.opmon_entry_pb2 import OpMonValue, OpMonId, OpMonEntry 
+from opmonlib.opmon_entry_pb2 import OpMonValue, OpMonId, OpMonEntry
 from google.protobuf.message import Message as msg
 from google.protobuf.descriptor import FieldDescriptor as fd
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -15,7 +15,7 @@ from typing import Optional
 
 class OpMonPublisher:
     def __init__(
-                    self, 
+                    self,
                     default_topic:str,
                     bootstrap:str = "", # When no bootstrap is provided, there will be nothing published
                     ers_session:str = "session_tester",
@@ -35,14 +35,6 @@ class OpMonPublisher:
             self.log.warning(f"There is no boostrap provided, not initializing publisher to topic {default_topic}")
             self.opmon_producer = None
             return None
-
-        # Setup the ERS logging
-        self.ersHandler = ERSKafkaLogHandler(
-            session = self.ers_session,
-            kafka_address = self.bootstrap,
-            kafka_topic = "ers_stream"
-        )
-        self.log.addHandler(self.ersHandler)
 
         # Setup the opmon publisher
         self.opmon_producer = KafkaProducer(
@@ -95,7 +87,7 @@ class OpMonPublisher:
         # Pre publish check - if the message has no known message types
         if len(opmon_entry.data) == 0:
             self.log.warning(f"OpMonEntry of type {message.__name__} has no data")
-            return  
+            return
 
         target_topic = self.extract_topic(message)
         target_key = self.extract_key(opmon_entry)
@@ -117,7 +109,7 @@ class OpMonPublisher:
         if not self.opmon_producer:
             self.log.warning(f"An improperly initialized OpMonProducer with topic {self.default_topic} has been used, nothign will be published.")
             return None
-        key = str(opmon_entry.origin.session) 
+        key = str(opmon_entry.origin.session)
         if (opmon_entry.origin.application != ""):
             key += "." + opmon_entry.origin.application
         for substructureID in opmon_entry.origin.substructure:
