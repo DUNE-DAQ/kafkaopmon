@@ -8,7 +8,12 @@ import json
 import click
 import time
 import logging
-
+from functools import partial
+from rich.logging import RichHandler
+from rich.console import Console
+from rich.panel import Panel
+import signal
+console = Console()
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 @click.command(context_settings=CONTEXT_SETTINGS)
@@ -16,35 +21,59 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--kafka-port', type=click.INT, default=30092, help='port of the kafka broker')
 @click.option('--topic', type=click.STRING, multiple=True, default=["opmon_stream"])
 @click.option('--running-seconds', type=click.INT, default=15, help='Number of seconds of the run')
+@click.option('--session', type=click.STRING, default=None, help='Which session to subscribe to')
+@click.option('--application', type=click.STRING, default=None, help='Which application to subscribe to')
+def cli(kafka_address, kafka_port, topic, running_seconds, session, application) :
 
-def cli(kafka_address, kafka_port, topic, running_seconds) :
-
-    logging.basicConfig( format='%(asctime)s %(levelname)-8s %(message)s',
-                         level=logging.DEBUG,
-                         datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(
+        level="INFO",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler()]
+    )
 
     bootstrap = f"{kafka_address}:{kafka_port}"
 
-    sub = opmon_sub.OpMonSubscriber( bootstrap=bootstrap,
-                                     topics=topic,
-                                     group_id = "subscriber_tester")
+    sub = opmon_sub.OpMonSubscriber(
+        bootstrap=bootstrap,
+        topics=topic,
+        group_id="subscriber_tester"
+    )
 
-    sub.add_callback(name="acceptable",
-                     function=acceptable_function )
-    sub.add_callback(name="failure",
-                     function=rejected_function,
-		     opmon_id='[0-9]+' )
+    sub.add_callback(
+        name="acceptable",
+        function = partial(acceptable_function, session=session, application=application)
+    )
+
+    sub.add_callback(
+        name="failure",
+        function=rejected_function,
+        opmon_id='[0-9]+'
+    )
+
+    def signal_handler(signum, frame):
+        sub.stop()
+        console.print("Exiting...")
+
+    signal.signal(signal.SIGINT, signal_handler)
 
     sub.start()
-    time.sleep(running_seconds)
-    sub.stop()
+    if running_seconds > 0:
+        time.sleep(running_seconds)
+        sub.stop()
+    console.print(Panel("Ctrl-c to exit", padding=(2, 10)),justify='center')
 
 
-def acceptable_function( entry : opmon_schema.OpMonEntry ) :
+
+def acceptable_function(entry:opmon_schema.OpMonEntry, session:str=None, application:str=None):
+    if session != entry.origin.session:
+        return
+    if application != entry.origin.application:
+        return
     logging.info(pb_json.MessageToJson(entry))
 
 
-def rejected_function(  entry : opmon_schema.OpMonEntry ) :
+def rejected_function(entry:opmon_schema.OpMonEntry):
     raise RuntimeError("This should never be callsed")
 
 
