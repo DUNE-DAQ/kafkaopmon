@@ -66,9 +66,9 @@ def cli(kafka_address, kafka_port, topic, running_seconds, session, application)
 
 
 def acceptable_function(entry:opmon_schema.OpMonEntry, session:str=None, application:str=None):
-    if session != entry.origin.session:
+    if session is not None and session != entry.origin.session:
         return
-    if application != entry.origin.application:
+    if application is not None and application != entry.origin.application:
         return
     logging.info(pb_json.MessageToJson(entry))
 
