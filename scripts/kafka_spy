@@ -7,10 +7,11 @@
 #  received with this code.
 #
 
-from kafka import KafkaConsumer
 import json
-import click
 import subprocess
+
+import click
+from kafka import KafkaConsumer
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
