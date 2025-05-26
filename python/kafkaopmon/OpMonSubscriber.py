@@ -41,7 +41,7 @@ class OpMonFunction:
 
 
 class OpMonSubscriber:
-    """Subscribe to a kafka topic to read OpMon metrics."""
+    """Subscribe to a kafka topic to read the contained OpMon metrics."""
 
     def __init__(
         self,

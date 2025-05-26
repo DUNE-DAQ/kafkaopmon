@@ -3,11 +3,10 @@
 import logging
 import sys
 
-from confmodel.utils import parse_opmon_conf
 from google.protobuf.message import Message as Msg
 from google.protobuf.timestamp_pb2 import Timestamp
 from kafka import KafkaProducer
-from opmonlib.utils import pack_to_OpMonEntry
+from opmonlib.utils import parse_opmon_conf, pack_to_opmonentry
 
 
 class OpMonPublisher:
@@ -59,7 +58,7 @@ class OpMonPublisher:
             self.log.error("Passed message needs to be of type google.protobuf.message")
             return
 
-        metric = pack_to_OpMonEntry(
+        metric = pack_to_opmonentry(
             self,
             session,
             application,
