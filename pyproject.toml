@@ -3,7 +3,7 @@ line-length = 88
 target-version = ["py310", "py311", "py312", "py313"]
 skip-magic-trailing-comma = true
 force-exclude = '''
-/(
+/( 
     \.git
   | \.github
   | \.ruff_cache
@@ -20,7 +20,6 @@ force-exclude = '''
 [tool.isort]
 profile = "black"
 
-# Optional: Ruff config here instead of ruff.toml
 [tool.ruff]
 line-length = 88
 target-version = "py310"

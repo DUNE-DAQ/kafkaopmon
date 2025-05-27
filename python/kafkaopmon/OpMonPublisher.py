@@ -6,20 +6,18 @@ import sys
 from google.protobuf.message import Message as Msg
 from google.protobuf.timestamp_pb2 import Timestamp
 from kafka import KafkaProducer
-from opmonlib.utils import parse_opmon_conf, to_entry
-from opmonlib.opmon_entry_pb2 import OpMonEntry
 from opmonlib.conf import OpMonConf
+from opmonlib.opmon_entry_pb2 import OpMonEntry
+from opmonlib.utils import to_entry
+
 
 class OpMonPublisher:
     """Tool for publishing operational monitoring metrics to kafka."""
 
-    def __init__(
-        self, conf: OpMonConf, log_level: int = logging.INFO
-    ) -> None:
+    def __init__(self, conf: OpMonConf) -> None:
         """Construct the object to publish OpMon metrics to kafka."""
         self.log = logging.getLogger("OpMonPublisher")
-        self.log.setLevel(log_level)
-
+        self.log.setLevel(conf.level)
         self.conf = conf
 
         if self.conf.opmon_type != "stream":
@@ -66,7 +64,7 @@ class OpMonPublisher:
         message: Msg,
         custom_origin: dict[str, str] | None = None,
         substructure: list[str] | None = None,
-        level: int | None = None
+        level: int | None = None,
     ) -> None:
         """Send an OpMonEntry to Kafka."""
         if not isinstance(message, Msg):
@@ -80,7 +78,7 @@ class OpMonPublisher:
             message=message,
             custom_origin=custom_origin,
             substructure=substructure,
-            t=Timestamp().GetCurrentTime()
+            t=Timestamp().GetCurrentTime(),
         )
         target_topic = self.extract_topic(message)
         target_key = self.extract_key(metric)
