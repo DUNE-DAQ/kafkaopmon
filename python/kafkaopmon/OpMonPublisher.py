@@ -8,29 +8,28 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from kafka import KafkaProducer
 from opmonlib.utils import parse_opmon_conf, to_entry
 from opmonlib.opmon_entry_pb2 import OpMonEntry
+from opmonlib.conf import OpMonConf
 
 class OpMonPublisher:
     """Tool for publishing operational monitoring metrics to kafka."""
 
     def __init__(
-        self, conf: dict[str:str], uri: dict[str:str], log_level: int = logging.INFO
+        self, conf: OpMonConf, log_level: int = logging.INFO
     ) -> None:
         """Construct the object to publish OpMon metrics to kafka."""
         self.log = logging.getLogger("OpMonPublisher")
         self.log.setLevel(log_level)
 
-        opmon_conf = parse_opmon_conf(self.log, conf, uri)
-        self.type = opmon_conf["type"]
-        if self.type != "stream":
+        self.conf = conf
+
+        if self.conf.opmon_type != "stream":
             self.log.error("Type must be stream to publish to kafka.")
             sys.exit(1)
-        self.bootstrap = opmon_conf["bootstrap"]
-        self.level = opmon_conf["level"] # Not set in C++
-        self.interval_s = opmon_conf["interval_s"] # Not set in C++
-        self.topic = "monitoring." + opmon_conf["topic"]
+
+        self.topic = "monitoring." + self.conf.topic
 
         self.producer = KafkaProducer(
-            bootstrap_servers=self.bootstrap,
+            bootstrap_servers=conf.bootstrap,
             value_serializer=lambda v: v.SerializeToString(),
             key_serializer=lambda k: str(k).encode("utf-8"),
         )
