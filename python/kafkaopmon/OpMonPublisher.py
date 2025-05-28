@@ -4,17 +4,10 @@ import logging
 import sys
 
 from google.protobuf.message import Message as Msg
-from google.protobuf.timestamp_pb2 import Timestamp
 from kafka import KafkaProducer
 from opmonlib.conf import OpMonConf
 from opmonlib.publisher_base import OpMonPublisherBase
-from opmonlib.utils import (
-    extract_key,
-    extract_topic,
-    log_level_from_str,
-    setup_rich_handler,
-    to_entry,
-)
+from opmonlib.utils import log_level_from_str, setup_rich_handler
 
 
 class OpMonPublisher(OpMonPublisherBase):
@@ -22,6 +15,7 @@ class OpMonPublisher(OpMonPublisherBase):
 
     def __init__(self, conf: OpMonConf) -> None:
         """Construct the object to publish OpMon metrics to kafka."""
+        super().__init__()
         self.log = logging.getLogger("OpMonPublisher")
         self.conf = conf
         if isinstance(self.conf.level, str):
@@ -34,12 +28,14 @@ class OpMonPublisher(OpMonPublisherBase):
             sys.exit(1)
 
         self.default_topic = "monitoring." + self.conf.topic
-
+        self.log.error(self.default_topic)
         self.publisher = KafkaProducer(
             bootstrap_servers=conf.bootstrap,
             value_serializer=lambda v: v.SerializeToString(),
             key_serializer=lambda k: str(k).encode("utf-8"),
         )
+
+        super().__post_init__()
         return
 
     def publish(
@@ -61,16 +57,15 @@ class OpMonPublisher(OpMonPublisherBase):
             level = log_level_from_str(level)
         if level < self.conf.level:
             return
-        metric = to_entry(
+        metric = self.to_entry(
             session=session,
             application=application,
             message=message,
             custom_origin=custom_origin,
             substructure=substructure,
-            t=Timestamp().GetCurrentTime(),
         )
-        target_topic = extract_topic(message)
-        target_key = extract_key(metric)
+        target_topic = self.extract_topic(message)
+        target_key = self.extract_key(metric)
 
         self.publisher.send(target_topic, value=metric, key=target_key)
         return
