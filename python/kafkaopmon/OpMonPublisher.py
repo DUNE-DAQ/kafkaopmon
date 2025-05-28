@@ -7,6 +7,7 @@ from google.protobuf.message import Message as Msg
 from google.protobuf.timestamp_pb2 import Timestamp
 from kafka import KafkaProducer
 from opmonlib.conf import OpMonConf
+from opmonlib.publisher_base import OpMonPublisherBase
 from opmonlib.utils import (
     extract_key,
     extract_topic,
@@ -16,7 +17,7 @@ from opmonlib.utils import (
 )
 
 
-class OpMonPublisher:
+class OpMonPublisher(OpMonPublisherBase):
     """Tool for publishing operational monitoring metrics to kafka."""
 
     def __init__(self, conf: OpMonConf) -> None:
