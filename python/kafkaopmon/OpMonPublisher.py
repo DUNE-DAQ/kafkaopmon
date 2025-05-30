@@ -7,7 +7,7 @@ from google.protobuf.message import Message as Msg
 from kafka import KafkaProducer
 from opmonlib.conf import OpMonConf
 from opmonlib.publisher_base import OpMonPublisherBase
-from opmonlib.utils import log_level_from_str, setup_rich_handler
+from opmonlib.utils import logging_log_level_from_str, setup_rich_handler
 
 
 class OpMonPublisher(OpMonPublisherBase):
@@ -19,7 +19,7 @@ class OpMonPublisher(OpMonPublisherBase):
         self.log = logging.getLogger("OpMonPublisher")
         self.conf = conf
         if isinstance(self.conf.level, str):
-            self.conf.level = log_level_from_str(self.conf.level)
+            self.conf.level = logging_log_level_from_str(self.conf.level)
         self.log.setLevel(self.conf.level)
         self.log.addHandler(setup_rich_handler())
 
@@ -36,7 +36,6 @@ class OpMonPublisher(OpMonPublisherBase):
             return
 
         self.default_topic = "monitoring." + self.conf.topic
-        self.log.error("KafkaOpMonPublisher default topic: %s", self.default_topic)
         self.publisher = KafkaProducer(
             bootstrap_servers=conf.bootstrap,
             value_serializer=lambda v: v.SerializeToString(),
@@ -62,7 +61,7 @@ class OpMonPublisher(OpMonPublisherBase):
         if not level:
             level = self.conf.level
         if isinstance(level, str):
-            level = log_level_from_str(level)
+            level = logging_log_level_from_str(level)
         if level < self.conf.level:
             return
 
