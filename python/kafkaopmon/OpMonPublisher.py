@@ -81,8 +81,5 @@ class OpMonPublisher(OpMonPublisherBase):
         target_topic = self.extract_topic(message)
         target_key = self.extract_key(metric)
 
-        self.log.error(target_topic)
-        self.log.error(target_key)
-        self.log.error(metric)
         self.publisher.send(target_topic, value=metric, key=target_key)
         return
