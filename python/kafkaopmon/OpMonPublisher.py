@@ -27,8 +27,16 @@ class OpMonPublisher(OpMonPublisherBase):
             self.log.error("Type must be stream to publish to kafka.")
             sys.exit(1)
 
+        if self.conf.bootstrap == "":
+            self.log.warning(
+                "There is no boostrap provided, not initializing publisher to topic %s",
+                self.conf.default_topic,
+            )
+            self.opmon_producer = None
+            return
+
         self.default_topic = "monitoring." + self.conf.topic
-        self.log.error(self.default_topic)
+        self.log.error("KafkaOpMonPublisher default topic: %s", self.default_topic)
         self.publisher = KafkaProducer(
             bootstrap_servers=conf.bootstrap,
             value_serializer=lambda v: v.SerializeToString(),
@@ -57,6 +65,7 @@ class OpMonPublisher(OpMonPublisherBase):
             level = log_level_from_str(level)
         if level < self.conf.level:
             return
+
         metric = self.to_entry(
             session=session,
             application=application,
@@ -64,8 +73,16 @@ class OpMonPublisher(OpMonPublisherBase):
             custom_origin=custom_origin,
             substructure=substructure,
         )
+
+        if len(metric.data) == 0:
+            self.log.warning("OpMonEntry of type %s has no data", message.__name__)
+            return
+
         target_topic = self.extract_topic(message)
         target_key = self.extract_key(metric)
 
+        self.log.error(target_topic)
+        self.log.error(target_key)
+        self.log.error(metric)
         self.publisher.send(target_topic, value=metric, key=target_key)
         return
