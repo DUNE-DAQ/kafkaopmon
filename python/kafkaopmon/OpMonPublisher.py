@@ -8,7 +8,7 @@ from kafka import KafkaProducer
 from opmonlib.conf import OpMonConf
 from opmonlib.publisher_base import OpMonPublisherBase
 from opmonlib.utils import logging_log_level_from_str, setup_rich_handler
-
+from opmonlib.opmon_entry_pb2 import OpMonEntry
 
 class OpMonPublisher(OpMonPublisherBase):
     """Tool for publishing operational monitoring metrics to kafka."""
@@ -44,6 +44,17 @@ class OpMonPublisher(OpMonPublisherBase):
 
         super().__post_init__()
         return
+
+    def extract_key(self, opmon_entry: OpMonEntry) -> str:
+        """Extract  the key from the OpMonEntry."""
+        self.check_publisher()
+        key = str(opmon_entry.origin.session)
+        if opmon_entry.origin.application != "":
+            key += "." + opmon_entry.origin.application
+        for substructure_id in opmon_entry.origin.substructure:
+            key += "." + substructure_id
+        key += "/" + str(opmon_entry.measurement)
+        return key
 
     def publish(
         self,
