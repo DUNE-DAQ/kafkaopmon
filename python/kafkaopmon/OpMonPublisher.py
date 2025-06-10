@@ -6,9 +6,10 @@ import sys
 from google.protobuf.message import Message as Msg
 from kafka import KafkaProducer
 from opmonlib.conf import OpMonConf
+from opmonlib.opmon_entry_pb2 import OpMonEntry
 from opmonlib.publisher_base import OpMonPublisherBase
 from opmonlib.utils import logging_log_level_from_str, setup_rich_handler
-from opmonlib.opmon_entry_pb2 import OpMonEntry
+
 
 class OpMonPublisher(OpMonPublisherBase):
     """Tool for publishing operational monitoring metrics to kafka."""
