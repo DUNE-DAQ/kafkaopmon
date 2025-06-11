@@ -52,8 +52,9 @@ class OpMonPublisher(OpMonPublisherBase):
         key = str(opmon_entry.origin.session)
         if opmon_entry.origin.application != "":
             key += "." + opmon_entry.origin.application
-        for substructure_id in opmon_entry.origin.substructure:
-            key += "." + substructure_id
+        if opmon_entry.origin.substructure:
+            for substructure_id in opmon_entry.origin.substructure:
+                key += "." + substructure_id
         key += "/" + str(opmon_entry.measurement)
         return key
 
