@@ -5,24 +5,20 @@ setup(
     name="kafkaopmon",
     install_requires=[
         "os",
-		"re",
-		"socket",
-		"threading",
-		"logging",
-		"getpass",
-		"sys",
-		"inspect",
-		"datetime",
-		"time",
-		"typing",
+        "re",
+        "socket",
+        "threading",
+        "logging",
+        "getpass",
+        "sys",
+        "inspect",
+        "datetime",
+        "time",
+        "typing",
         "googleapis-common-protos",
         "kafka-python",
         "rich",
-        "sh"
-
+        "sh",
     ],
-    extras_require={"develop": [
-        "ipdb",
-        "ipython"
-    ]}
+    extras_require={"develop": ["ipdb", "ipython"]},
 )

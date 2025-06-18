@@ -1,153 +1,88 @@
 #!/usr/bin/env python3
 
-from opmonlib.opmon_entry_pb2 import OpMonValue, OpMonId, OpMonEntry
-from google.protobuf.message import Message as msg
-from google.protobuf.descriptor import FieldDescriptor as fd
-from google.protobuf.timestamp_pb2 import Timestamp
-from erskafka.ERSKafkaLogHandler import ERSKafkaLogHandler
-
-import os
 import logging
+import sys
 
-from datetime import datetime
+from google.protobuf.message import Message as Msg
 from kafka import KafkaProducer
-from typing import Optional
+from opmonlib.conf import OpMonConf
+from opmonlib.opmon_entry_pb2 import OpMonEntry
+from opmonlib.publisher_base import OpMonPublisherBase
+from opmonlib.utils import logging_log_level_from_str, setup_rich_handler
 
-class OpMonPublisher:
-    def __init__(
-                    self,
-                    default_topic:str,
-                    bootstrap:str = "", # When no bootstrap is provided, there will be nothing published
-                    ers_session:str = "session_tester",
-                    log_level:int = logging.DEBUG
-    ) -> None:
-        # Set up text logging
-        self.ers_session = ers_session
+
+class OpMonPublisher(OpMonPublisherBase):
+    """Tool for publishing operational monitoring metrics to kafka."""
+
+    def __init__(self, conf: OpMonConf) -> None:
+        """Construct the object to publish OpMon metrics to kafka."""
+        super().__init__()
         self.log = logging.getLogger("OpMonPublisher")
-        self.log.setLevel(log_level)
+        self.conf = conf
+        if isinstance(self.conf.level, str):
+            self.conf.level = logging_log_level_from_str(self.conf.level)
+        self.log.setLevel(self.conf.level)
+        self.log.addHandler(setup_rich_handler())
 
-        # Initialize object parameters
-        self.bootstrap = bootstrap
-        self.default_topic = "monitoring." + default_topic
+        if self.conf.opmon_type != "stream":
+            self.log.error("Type must be stream to publish to kafka.")
+            sys.exit(1)
 
-        ## Options from configurations
-        if bootstrap == "":
-            self.log.warning(f"There is no boostrap provided, not initializing publisher to topic {default_topic}")
+        if self.conf.bootstrap == "":
+            self.log.warning(
+                "There is no boostrap provided, not initializing publisher to topic %s",
+                self.conf.default_topic,
+            )
             self.opmon_producer = None
-            return None
+            return
 
-        # Setup the opmon publisher
-        self.opmon_producer = KafkaProducer(
-            bootstrap_servers = self.bootstrap,
-            value_serializer = lambda v: v.SerializeToString(),
-            key_serializer = lambda k: str(k).encode('utf-8')
+        self.default_topic = "monitoring." + self.conf.topic
+        self.publisher = KafkaProducer(
+            bootstrap_servers=conf.bootstrap,
+            value_serializer=lambda v: v.SerializeToString(),
+            key_serializer=lambda k: str(k).encode("utf-8"),
         )
+
+        super().__post_init__()
+        return
+
+    def extract_key(self, opmon_entry: OpMonEntry) -> str:
+        """Extract  the key from the OpMonEntry."""
+        self.check_publisher()
+        key = str(opmon_entry.origin.session)
+        if opmon_entry.origin.application != "":
+            key += "." + opmon_entry.origin.application
+        if opmon_entry.origin.substructure:
+            for substructure_id in opmon_entry.origin.substructure:
+                key += "." + substructure_id
+        key += "/" + str(opmon_entry.measurement)
+        return key
 
     def publish(
         self,
-        session:str,
-        application:str,
-        message:msg,
-        custom_origin:Optional[dict[str,str]] = {},
-        substructure:Optional[list[str]] = []
+        message: Msg,
+        custom_origin: dict[str, str] | None = None,
+        level: int | str | None = None,
     ) -> None:
-        """Create an OpMonEntry and send it to Kafka."""
-        # If there is no publisher, do not send anything
-        t = Timestamp()
-        t.GetCurrentTime()
-
-        # Pre-map checks
-        if not self.opmon_producer:
-            self.log.warning(f"An improperly initialized OpMonProducer with topic {self.default_topic} has been used, nothign will be published.")
+        """Send an OpMonEntry to Kafka."""
+        if not isinstance(message, Msg):
+            self.log.error("Passed message needs to be of type google.protobuf.message")
             return
-        if not isinstance(message, msg):
-            raise ValueError("This is not an accepted publish value, it needs to be of type google.protobuf.message")
+        if not level:
+            level = self.conf.level
+        if isinstance(level, str):
+            level = logging_log_level_from_str(level)
+        if level < self.conf.level:
+            return
 
-        for key, value in custom_origin.items():
-            if type(value) != "str":
-                try:
-                    custom_origin[key] = str(value)
-                except:
-                    raise TypeError(f"custom_origin[{key}] is not a string and cannot be converted to one.")
+        metric = self.to_entry(message=message, custom_origin=custom_origin)
 
-        data_dict = self.map_message(message)
-        opmon_id = OpMonId(
-            session = session,
-            application = application,
-            substructure = substructure
-        )
-        opmon_entry = OpMonEntry(
-            time = t,
-            origin = opmon_id,
-            custom_origin = custom_origin,
-            measurement = message.DESCRIPTOR.full_name,
-            data = data_dict,
-        )
-
-        # Pre publish check - if the message has no known message types
-        if len(opmon_entry.data) == 0:
-            self.log.warning(f"OpMonEntry of type {message.__name__} has no data")
+        if len(metric.data) == 0:
+            self.log.warning("OpMonEntry of type %s has no data", message.__name__)
             return
 
         target_topic = self.extract_topic(message)
-        target_key = self.extract_key(opmon_entry)
+        target_key = self.extract_key(metric)
 
-        self.opmon_producer.send(
-            target_topic,
-            value = opmon_entry,
-            key = target_key
-        )
+        self.publisher.send(target_topic, value=metric, key=target_key)
         return
-
-    def extract_topic(self, message:msg) -> str:
-        if not self.opmon_producer:
-            self.log.warning(f"An improperly initialized OpMonProducer with topic {self.default_topic} has been used, nothign will be published.")
-            return None
-        return self.default_topic
-
-    def extract_key(self, opmon_entry:OpMonEntry) -> str:
-        if not self.opmon_producer:
-            self.log.warning(f"An improperly initialized OpMonProducer with topic {self.default_topic} has been used, nothign will be published.")
-            return None
-        key = str(opmon_entry.origin.session)
-        if (opmon_entry.origin.application != ""):
-            key += "." + opmon_entry.origin.application
-        for substructureID in opmon_entry.origin.substructure:
-            key += "." + substructureID
-        key += '/' + str(opmon_entry.measurement)
-        return key
-
-    def map_message(self, message:msg, top_block:str=""):
-        message_dict = {}
-        for name, descriptor in message.DESCRIPTOR.fields_by_name.items():
-            if descriptor.label == fd.LABEL_REPEATED:
-                continue # We don't want to keep repeated values as this doens't work for influxdb as there is no way to store repeated values
-            elif descriptor.cpp_type == fd.CPPTYPE_MESSAGE:
-                # Prepend the name of the nested message to the attribute name
-                top_block += name + "."
-                message_dict = message_dict | self.map_message(getattr(message, name), top_block)
-            else:
-                message_dict[top_block + name] = self.map_entry(getattr(message, name), descriptor.cpp_type)
-        return message_dict
-
-    def map_entry(self, value, field_type:int) -> OpMonValue:
-        formatted_OpMonValue = OpMonValue()
-        match field_type:
-            case fd.CPPTYPE_INT32:
-                formatted_OpMonValue.int4_value = value
-            case fd.CPPTYPE_INT64:
-                formatted_OpMonValue.int8_value = value
-            case fd.CPPTYPE_UINT32:
-                formatted_OpMonValue.uint4_value = value
-            case fd.CPPTYPE_UINT64:
-                formatted_OpMonValue.uint8_value = value
-            case fd.CPPTYPE_DOUBLE:
-                formatted_OpMonValue.double_value = value
-            case fd.CPPTYPE_FLOAT:
-                formatted_OpMonValue.float_value = value
-            case fd.CPPTYPE_BOOL:
-                formatted_OpMonValue.boolean_value = value
-            case fd.CPPTYPE_STRING:
-                formatted_OpMonValue.string_value = value
-            # Ignore unknown types.
-        return formatted_OpMonValue
