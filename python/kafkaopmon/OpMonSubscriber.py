@@ -7,10 +7,27 @@ import re
 import socket
 import threading
 from collections.abc import Callable
+from typing import Any
 
 import google.protobuf.message as msg
 import opmonlib.opmon_entry_pb2 as entry
+from google.protobuf.json_format import MessageToDict
 from kafka import KafkaConsumer
+
+
+def decode_opmon_message(binary_message: bytes) -> dict[str, Any]:
+    """Parses a binary protobuf message and converts it to a native Python dictionary.
+
+    Args:
+        binary_message: The raw binary message to decode.
+
+    Returns:
+        A dictionary representation of the OpMonEntry message.
+    """
+    decoded_msg = entry.OpMonEntry()
+    decoded_msg.ParseFromString(binary_message)
+
+    return MessageToDict(decoded_msg, preserving_proto_field_name=True)
 
 
 class OpMonFunction:
@@ -34,8 +51,8 @@ class OpMonFunction:
             return False
         return True
 
-    def execute(self, e: entry.OpMonEntry) -> None:
-        """Execute the function."""
+    def execute(self, e: dict[str, Any]) -> None:
+        """Execute the function with a dictionary representation of OpMonEntry."""
         self.function(e)
         return
 
@@ -56,8 +73,7 @@ class OpMonSubscriber:
         self.group_id = group_id
         self.timeout = timeout_ms
         if len(topics) == 0:
-            msg = "Topic list is empty"
-            raise ValueError(msg)
+            raise ValueError("Topic list is empty")  # noqa: TRY003
         self.topics = topics
         ## runtime options
         self.running = False
@@ -165,8 +181,7 @@ class OpMonSubscriber:
 
                 for function in self.functions.values():
                     if function.match(key):
-                        e = entry.OpMonEntry()
-                        e.ParseFromString(message.value)
+                        e = decode_opmon_message(message.value)
                         function.execute(e)
 
             except msg.DecodeError:
