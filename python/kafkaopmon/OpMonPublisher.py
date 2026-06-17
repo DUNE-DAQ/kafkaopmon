@@ -63,7 +63,10 @@ class OpMonPublisher(OpMonPublisherBase):
         message: Msg,
         custom_origin: dict[str, str] | None = None,
         level: int | str | None = None,
+        session_override: str | None = None,
     ) -> None:
+        #! We will probably need an override here!
+        
         """Send an OpMonEntry to Kafka."""
         if not isinstance(message, Msg):
             self.log.error("Passed message needs to be of type google.protobuf.message")
@@ -75,7 +78,7 @@ class OpMonPublisher(OpMonPublisherBase):
         if level < self.conf.level:
             return
 
-        metric = self.to_entry(message=message, custom_origin=custom_origin)
+        metric = self.to_entry(message=message, custom_origin=custom_origin, session_override=session_override)
 
         if len(metric.data) == 0:
             self.log.warning("OpMonEntry of type %s has no data", message.__name__)
