@@ -14,6 +14,7 @@ find_package(Boost COMPONENTS unit_test_framework program_options REQUIRED)
 
 daq_add_library(*.cpp LINK_LIBRARIES ${Boost_LIBRARIES} opmonlib::opmonlib RdKafka::rdkafka RdKafka::rdkafka++)
 
+
 ##############################################################################
 # Plugins
 
@@ -34,3 +35,4 @@ daq_add_application( opmon_publisher_test opmon_publisher_test.cxx TEST LINK_LIB
 daq_add_application( opmon_publish_to_kafka_test opmon_publish_to_kafka_test.cxx TEST LINK_LIBRARIES kafkaopmon )
 
 daq_install()
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python/ DESTINATION ${CMAKE_INSTALL_PYTHONDIR} OPTIONAL FILES_MATCHING PATTERN "py.typed" PATTERN "*.pyi")
