@@ -14,8 +14,6 @@ find_package(Boost COMPONENTS unit_test_framework program_options REQUIRED)
 
 daq_add_library(*.cpp LINK_LIBRARIES ${Boost_LIBRARIES} opmonlib::opmonlib RdKafka::rdkafka RdKafka::rdkafka++)
 
-daq_add_python_bindings(*.cpp)
-
 ##############################################################################
 # Plugins
 
