@@ -60,3 +60,6 @@ lint.ignore = [
 ]
 src = ["python", "scripts"]
 lint.pydocstyle.convention = "google"
+
+[tool.setuptools.package-data]
+kafkaopmon = ["py.typed"]
