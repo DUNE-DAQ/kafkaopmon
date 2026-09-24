@@ -18,11 +18,11 @@
 using namespace dunedaq::opmonlib;
 using namespace dunedaq::opmon;
 
-BOOST_AUTO_TEST_CASE(Invalid_Creation) {
+BOOST_AUTO_TEST_CASE(Invalid_Creation)
+{
 
   // failure due to wrong formatting
-  BOOST_CHECK_THROW( auto service = makeOpMonFacility("stream://bla_bla"),
-		     OpMonFacilityCreationFailed );
-  
-  BOOST_CHECK_NO_THROW( auto service = makeOpMonFacility("stream://test.website.com:5005/no_topic") );
+  BOOST_CHECK_THROW(auto service = makeOpMonFacility("stream://bla_bla"), OpMonFacilityCreationFailed);
+
+  BOOST_CHECK_NO_THROW(auto service = makeOpMonFacility("stream://test.website.com:5005/no_topic"));
 }
