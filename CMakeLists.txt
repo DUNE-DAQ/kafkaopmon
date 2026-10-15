@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(kafkaopmon VERSION 3.1.4)
+project(kafkaopmon VERSION 3.1.5)
 
 find_package(daq-cmake REQUIRED)
 
